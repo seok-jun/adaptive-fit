@@ -1,0 +1,11 @@
+node_modules/
+.expo/
+android/
+dist/
+coverage/
+*.apk
+*.aab
+*.jks
+*.keystore
+*.p12
+.env*
