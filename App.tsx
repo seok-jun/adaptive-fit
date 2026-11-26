@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
+  Keyboard,
   Modal,
   Pressable,
   ScrollView,
@@ -190,6 +191,7 @@ function CoachApp() {
       await saveKey(provider, value);
       setKeyStatus((previous) => ({ ...previous, [provider]: true }));
       setKeyInput('');
+      Keyboard.dismiss();
       setNotice({ message: `${providerName[provider]} 키를 기기에 저장했어요.`, tone: 'success' });
     } catch (error) {
       setNotice({ message: storageMessage(error, '키를 저장하지 못했어요. 입력값을 확인하고 다시 시도해 주세요.'), tone: 'error' });
@@ -258,6 +260,7 @@ function CoachApp() {
       const result = { id, plan };
       currentDraft.current = result;
       setDraft(result);
+      scroll.current?.scrollTo({ y: 0, animated: true });
     } catch (error) {
       const message = error instanceof CoachError
         ? error.message
@@ -301,6 +304,8 @@ function CoachApp() {
           <Text style={styles.wordmark}>Adaptive Fit</Text>
         </View>
 
+        {notice && <View style={styles.feedbackContainer}><Feedback notice={notice} /></View>}
+
         {loading ? (
           <View style={styles.loading} accessibilityRole="progressbar">
             <ActivityIndicator color={colors.teal} />
@@ -319,7 +324,6 @@ function CoachApp() {
                   </Text>
                 </View>
 
-                <Feedback notice={notice} />
                 {draft && (
                   <PlanCard plan={draft.plan} title="코치가 제안한 운동" proposed>
                     <Button label={operation === 'approve' ? '계획 저장 중' : '계획 승인'} disabled={locked} onPress={() => void commitDraft()} />
@@ -340,7 +344,6 @@ function CoachApp() {
                   <Text style={styles.screenTitle} accessibilityRole="header">코치 설정</Text>
                   <Text style={styles.body}>공급자와 모델을 선택하고 개인 API 키를 등록하세요.</Text>
                 </View>
-                <Feedback notice={notice} />
                 <View style={styles.card}>
                   <ChoiceGroup label="공급자" choices={providers.map((provider) => ({ value: provider, label: providerName[provider] }))} value={editor.provider} disabled={locked} onChange={editProvider} />
                   <ChoiceGroup label="모델" choices={MODELS.filter((model) => model.provider === editor.provider).map((model) => ({ value: model.id, label: model.label }))} value={editor.model} disabled={locked} onChange={(model) => setEditor((previous) => ({ ...previous, model, effort: 'default' }))} />
@@ -438,8 +441,7 @@ function storageMessage(error: unknown, fallback: string) {
   return error instanceof StorageError ? error.message : fallback;
 }
 
-function Feedback({ notice }: { notice: Notice | null }) {
-  if (!notice) return null;
+function Feedback({ notice }: { notice: Notice }) {
   return (
     <View style={[styles.feedback, notice.tone === 'error' ? styles.error : styles.success]}>
       <Text accessibilityRole={notice.tone === 'error' ? 'alert' : undefined} accessibilityLiveRegion="polite"
@@ -573,11 +575,11 @@ const styles = StyleSheet.create({
   field: { gap: 6 },
   fieldLabel: { color: colors.ink, fontSize: 14, fontWeight: '700' },
   choices: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  choice: { minHeight: 44, justifyContent: 'center', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 7, backgroundColor: '#F4F7F5', borderWidth: 1, borderColor: colors.line },
+  choice: { minHeight: 46, justifyContent: 'center', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 7, backgroundColor: '#F4F7F5', borderWidth: 1, borderColor: colors.line },
   selectedChoice: { borderColor: '#8AB6A3', backgroundColor: colors.pale },
   choiceText: { color: colors.muted, fontSize: 13, fontWeight: '600' },
   selectedChoiceText: { color: colors.teal, fontWeight: '800' },
-  button: { minHeight: 46, borderRadius: 13, paddingHorizontal: 15, paddingVertical: 10, alignItems: 'center', justifyContent: 'center' },
+  button: { minHeight: 48, borderRadius: 13, paddingHorizontal: 15, paddingVertical: 10, alignItems: 'center', justifyContent: 'center' },
   primary: { backgroundColor: colors.teal },
   secondary: { backgroundColor: '#F1F6F3', borderColor: colors.line, borderWidth: 1 },
   danger: { backgroundColor: '#9C352B' },
@@ -602,6 +604,7 @@ const styles = StyleSheet.create({
   exerciseHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 },
   exerciseTitle: { color: colors.ink, fontSize: 15, fontWeight: '800', flexShrink: 1 },
   exerciseTime: { color: colors.teal, fontSize: 13, fontWeight: '700' },
+  feedbackContainer: { paddingHorizontal: 18, paddingBottom: 4 },
   feedback: { borderRadius: 13, padding: 12, borderWidth: 1 },
   error: { backgroundColor: '#FFF2EF', borderColor: '#F2D0C8' },
   success: { backgroundColor: colors.pale, borderColor: '#BDDDCE' },

@@ -227,6 +227,7 @@ function extractText(provider: Provider, raw: unknown): string {
 
 async function post(url: string, headers: Record<string, string>, body: object): Promise<unknown> {
   const controller = new AbortController();
+  const expiresAt = Date.now() + REQUEST_TIMEOUT_MS;
   let timer: ReturnType<typeof setTimeout> | undefined;
   const deadline = new Promise<never>((_, reject) => {
     timer = setTimeout(() => {
@@ -240,6 +241,7 @@ async function post(url: string, headers: Record<string, string>, body: object):
       headers: { 'Content-Type': 'application/json', ...headers },
       body: JSON.stringify(body),
       redirect: 'error',
+      credentials: 'omit',
       signal: controller.signal,
     });
     if (!response.ok) {
@@ -252,7 +254,9 @@ async function post(url: string, headers: Record<string, string>, body: object):
     }
   };
   try {
-    return await Promise.race([deadline, readResponse()]);
+    const result = await Promise.race([deadline, readResponse()]);
+    if (Date.now() >= expiresAt) throw new CoachError(TIMEOUT_ERROR);
+    return result;
   } catch (error) {
     throw error instanceof CoachError ? error : new CoachError(NETWORK_ERROR);
   } finally {

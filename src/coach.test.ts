@@ -76,6 +76,7 @@ it('sends only the selected context and OpenAI credential in a structured Respon
     headers: { 'Content-Type': 'application/json', Authorization: 'Bearer test-openai-key' },
     body: expect.any(String),
     redirect: 'error',
+    credentials: 'omit',
     signal: expect.anything(),
   });
   const body = requestBody();
@@ -105,6 +106,7 @@ it('sends the Anthropic credential, API version, schema, effort and supported th
     },
     body: expect.any(String),
     redirect: 'error',
+    credentials: 'omit',
     signal: expect.anything(),
   });
   const body = requestBody();

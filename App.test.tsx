@@ -8,21 +8,22 @@ jest.mock('react-native-safe-area-context', () => {
   return { SafeAreaProvider: View, SafeAreaView: View };
 });
 
-jest.mock('./src/coach', () => ({
-  CoachError: class extends Error {},
-  DEFAULT_SELECTION: { provider: 'openai', model: 'sample-openai', effort: 'default' },
-  MODELS: [
+jest.mock('./src/coach', () => {
+  const models = [
     { provider: 'openai', id: 'sample-openai', label: 'OpenAI Standard', efforts: ['default', 'low', 'high'] },
     { provider: 'openai', id: 'sample-instant', label: 'OpenAI Instant', efforts: ['default'] },
     { provider: 'anthropic', id: 'sample-claude', label: 'Claude Standard', efforts: ['default', 'low', 'high'] },
-  ],
-  exerciseLabel: () => '맨몸 스쿼트',
-  isSelection: (selection: Selection) => [
-    ['openai', 'sample-openai', 'default'], ['openai', 'sample-openai', 'high'],
-    ['openai', 'sample-instant', 'default'], ['anthropic', 'sample-claude', 'low'],
-  ].some(([provider, model, effort]) => selection.provider === provider && selection.model === model && selection.effort === effort),
-  requestCoach: jest.fn(),
-}));
+  ];
+  return {
+    CoachError: class extends Error {},
+    DEFAULT_SELECTION: { provider: 'openai', model: 'sample-openai', effort: 'default' },
+    MODELS: models,
+    exerciseLabel: () => '맨몸 스쿼트',
+    isSelection: (selection: Selection) => models.some((model) =>
+      selection.provider === model.provider && selection.model === model.id && model.efforts.includes(selection.effort)),
+    requestCoach: jest.fn(),
+  };
+});
 
 jest.mock('./src/storage', () => ({
   StorageError: class extends Error {},
@@ -45,6 +46,9 @@ const proposal: Plan = {
   reason: '새로 제안한 운동입니다.',
   exercises: [{ id: 'bodyweight-squat', minutes: 10, instruction: '천천히 앉고 일어나세요.' }],
 };
+
+// Rendering the full native view tree can take longer on a cold Jest cache.
+jest.setTimeout(20000);
 
 const mocks = {
   approvePlan: jest.mocked(approvePlan),
@@ -73,11 +77,14 @@ function press(name: string, role: 'button' | 'tab' | 'radio' = 'button') {
 
 async function openCoach() {
   const view = render(<App />);
-  await screen.findByRole('header', { name: '오늘의 코칭' });
+  await act(async () => {});
+  expect(screen.getByRole('header', { name: '오늘의 코칭' })).toBeTruthy();
   return view;
 }
 
 test('restores saved settings and a previous plan, and waits for explicit consent on every request', async () => {
+  let releaseRequest: ((plan: Plan) => void) | undefined;
+  mocks.request.mockImplementationOnce(() => new Promise<Plan>((resolve) => { releaseRequest = resolve; }));
   await openCoach();
   expect(screen.getByText('이전에 승인한 계획입니다.')).toBeTruthy();
   press('15분', 'radio');
@@ -92,6 +99,10 @@ test('restores saved settings and a previous plan, and waits for explicit consen
 
   press('코칭 요청 검토');
   press('동의하고 전송');
+  expect(screen.getByRole('button', { name: '코칭을 받는 중…' })).toBeDisabled();
+  press('코칭을 받는 중…');
+  await waitFor(() => expect(mocks.request).toHaveBeenCalledTimes(1));
+  await act(async () => releaseRequest?.(proposal));
   await screen.findByText('새로 제안한 운동입니다.');
   expect(mocks.readKey).toHaveBeenCalledTimes(1);
   expect(mocks.readKey).toHaveBeenCalledWith('openai');
@@ -173,8 +184,7 @@ test('registers, replaces and deletes a provider-specific key and only persists 
 });
 
 test('preserves the previous plan after provider failure and suppresses internal exception text', async () => {
-  const providerError = new Error('개인 계정의 요청 한도를 확인해 주세요.');
-  Object.setPrototypeOf(providerError, CoachError.prototype);
+  const providerError = new CoachError('개인 계정의 요청 한도를 확인해 주세요.');
   mocks.request.mockRejectedValueOnce(providerError).mockRejectedValueOnce(new Error('fixture-private-details'));
   await openCoach();
 

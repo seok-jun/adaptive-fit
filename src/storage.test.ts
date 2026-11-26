@@ -1,3 +1,4 @@
+import { NativeModules } from 'react-native';
 import {DatabaseSync} from 'node:sqlite';
 import * as SQLite from 'expo-sqlite';
 import * as SecureStore from 'expo-secure-store';
@@ -10,6 +11,7 @@ jest.mock('expo-secure-store', () => ({getItemAsync:jest.fn(), setItemAsync:jest
 const db = new DatabaseSync(':memory:');
 const keys = new Map<string,string>();
 beforeAll(() => {
+  NativeModules.FitKeyStatus = {contains: async (provider:string) => keys.has('adaptivefit.key.' + provider)};
   (SQLite.openDatabaseAsync as jest.Mock).mockResolvedValue({
     execAsync: (sql:string) => db.exec(sql),
     runAsync: (sql:string,...args:string[]) => db.prepare(sql).run(...args),
@@ -24,6 +26,8 @@ test('keys are isolated, replaceable and removable; preferences contain no key',
   await saveKey('openai','synthetic-one');
   await saveKey('anthropic','synthetic-two');
   await saveKey('openai','synthetic-new');
+  expect(await hasKey('openai')).toBe(true);
+  expect(SecureStore.getItemAsync).not.toHaveBeenCalled();
   expect(await readKey('openai')).toBe('synthetic-new');
   await deleteKey('openai');
   expect(await hasKey('openai')).toBe(false);

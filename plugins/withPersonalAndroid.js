@@ -18,6 +18,10 @@ module.exports = function withPersonalAndroid(config) {
     return mod;
   });
   config = withMainApplication(config, mod => {
+    const packages = 'PackageList(this).packages.apply {';
+    if (!mod.modResults.contents.includes('add(FitKeyPackage())')) {
+      mod.modResults.contents = replaceOnce(mod.modResults.contents, packages, packages + '\n              add(FitKeyPackage())');
+    }
     const setup = 'com.facebook.react.modules.network.OkHttpClientProvider.setOkHttpClientFactory { FitTransport.client() }';
     if (!mod.modResults.contents.includes(setup)) {
       mod.modResults.contents = replaceOnce(mod.modResults.contents, 'super.onCreate()', 'super.onCreate()\n    ' + setup);
@@ -39,7 +43,7 @@ module.exports = function withPersonalAndroid(config) {
       const release = src.indexOf('        release {');
       if (release < 0) throw new Error('Android release config missing');
       src = src.slice(0, release) + replaceOnce(src.slice(release), 'signingConfig signingConfigs.debug', 'signingConfig signingConfigs.personal');
-      src += '\ndependencies { testImplementation "junit:junit:4.13.2"; testImplementation "com.squareup.okhttp3:mockwebserver:4.12.0" }\n';
+      src += '\ndependencies { testImplementation "junit:junit:4.13.2"; testImplementation "com.squareup.okhttp3:mockwebserver:4.9.2" }\n';
     }
     mod.modResults.contents = src;
     return mod;
@@ -47,6 +51,7 @@ module.exports = function withPersonalAndroid(config) {
   return withDangerousMod(config, ['android', async mod => {
     const base = path.join(mod.modRequest.platformProjectRoot, 'app/src');
     for (const [file, dest] of Object.entries({
+      'FitKeyStatus.kt': 'main/java/com/adaptivefit/personal',
       'FitTransport.kt': 'main/java/com/adaptivefit/personal',
       'FitTransportTest.kt': 'test/java/com/adaptivefit/personal',
       'fit_backup.xml': 'main/res/xml',

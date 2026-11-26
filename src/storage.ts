@@ -1,3 +1,4 @@
+import { NativeModules } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import * as SQLite from 'expo-sqlite';
 import {isPlan, isSelection, type Plan, type Provider, type Selection} from './coach';
@@ -44,7 +45,7 @@ export function readKey(provider: Provider) {
 }
 
 export async function hasKey(provider: Provider) {
-  return Boolean(await readKey(provider));
+  return safely<boolean>('키 등록 상태를 확인하지 못했어요.', () => NativeModules.FitKeyStatus.contains(provider));
 }
 
 export function saveKey(provider: Provider, key: string) {
