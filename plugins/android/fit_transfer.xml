@@ -1,0 +1,10 @@
+<data-extraction-rules>
+  <cloud-backup>
+    <exclude domain="file" path="SQLite/" />
+    <exclude domain="sharedpref" path="SecureStore.xml" />
+  </cloud-backup>
+  <device-transfer>
+    <exclude domain="file" path="SQLite/" />
+    <exclude domain="sharedpref" path="SecureStore.xml" />
+  </device-transfer>
+</data-extraction-rules>
