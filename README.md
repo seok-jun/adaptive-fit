@@ -13,6 +13,8 @@ npm test
 npx expo prebuild --platform android --no-install
 ```
 
+Windows에서 Gradle 캐시 경로가 길면 Ninja가 네이티브 의존성을 읽지 못할 수 있다. 이 프로젝트의 검증 빌드는 GRADLE_USER_HOME을 C:\fit-tooling\g로 설정했다.
+
 Windows 로컬 APK 빌드에는 Android SDK의 플랫폼·빌드 도구 36, NDK 27.1.12297006, CMake 3.22.1이 필요하다. JAVA_HOME과 ANDROID_HOME을 설정한다. 개인 서명 키는 제품 디렉터리 밖에 보관한다. FIT_SIGN_FILE은 별칭 adaptive-fit을 가진 키 저장소의 절대 경로, FIT_SIGN_PASSWORD는 저장소 및 키 암호다. 비밀값은 프로세스 환경으로 전달한다.
 
 ```powershell
