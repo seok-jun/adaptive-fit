@@ -1,3 +1,9 @@
 # 실행 명세
 React Native·Expo를 사용한다. 기존 실행 코드 컨벤션은 없으며 제품 결정 문서를 따른다. App.tsx는 설정, 미리보기·동의, 결과·승인 화면을 소유한다. src/coach.ts는 공급자별 모델표, 허용 운동 ID와 장비, 고정 출처 및 응답 파싱을 소유한다. src/storage.ts는 SecureStore 키와 SQLite 일반 설정·승인 계획을 분리한다. SQLite에는 키가 전달되지 않는다. 완료 전 요청 옵션을 고정하고 요청 중 설정 변경·중복 제출을 막는다. 앱이 중단되거나 인증/429/시간초과/형식 오류면 기존 계획이 남는다. 없는 키는 입력을 안내하고 무효 저장 선택은 재선택한다.
 설정·저장·전송은 오류 처리하며 병렬 저장으로 최신 선택이 역전되지 않도록 한다. 조회 시 승인 데이터도 검증한다. 테스트는 공급자별 인증 헤더·요청 구조, 미지원 옵션·장비·시간, 키 수명주기, 동의 전후 호출, 승인 저장과 복원을 확인한다. npm test, tsc, Expo prebuild 및 Gradle assembleRelease, apksigner verify와 adb 설치·콜드 실행 순서로 확인한다. Android 개발 도구의 자동 생성물과 키 파일은 Git에서 제외한다. 이전 APK 설치로 되돌릴 때 앱 서명과 데이터 호환 여부를 먼저 확인한다.
+## 수용 기준별 증거
+- AC1 storage 및 화면 테스트에서 공급자별 키 등록·교체·삭제, 저장된 모델·강도 재실행 복원과 모델 변경 후 유효 옵션만 노출을 확인한다.
+- AC2 화면 테스트에서 전송 확인 취소 0회, 전송 확정 1회를 검사한다. coach 요청 테스트에서 product-direction.md (0fca69a)의 고정 URL, OpenAI Bearer/Responses reasoning.effort, Anthropic x-api-key와 anthropic-version/Messages output_config.effort 및 모델별 thinking과 기본 필드 생략을 검증한다. 허용 조합은 화면과 호출에서 공유한다.
+- AC3 Zod 응답 스키마 + 허용 운동 ID·기구·운동시간 합 검증을 fixture로 검사한다. 요청·검증·저장 실패가 기존 승인 행을 변경할 경로가 없는지 테스트한다.
+- AC4 SQLite approved_plans(id INTEGER PRIMARY KEY, draft_id TEXT UNIQUE, payload TEXT)는 승인마다 INSERT하며 이전 행을 보존한다. 같은 초안은 중복 행을 만들지 않는다. 현재 계획은 id 내림차순 첫 행이다. 새 요청 시작 시 이전 미승인 초안을 폐기하고 저장·요청 중에는 중복 동작을 막는다. 승인과 재실행 복원은 화면 및 저장 테스트로 검증한다.
+- AC5 apksigner verify, aapt dump badging, APK의 assets/index.android.bundle 확인과 별도로 adb install 후 Metro 없는 콜드 시작을 확인한다. 사용자 개인 폰·실키 유료 코칭은 별도 미검증 항목이다.
