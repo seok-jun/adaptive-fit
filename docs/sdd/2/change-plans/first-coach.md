@@ -7,3 +7,4 @@ React Native·Expo를 사용한다. 기존 실행 코드 컨벤션은 없으며 
 - AC3 Zod 응답 스키마 + 허용 운동 ID·기구·운동시간 합 검증을 fixture로 검사한다. 요청·검증·저장 실패가 기존 승인 행을 변경할 경로가 없는지 테스트한다.
 - AC4 SQLite approved_plans(id INTEGER PRIMARY KEY, draft_id TEXT UNIQUE, payload TEXT)는 승인마다 INSERT하며 이전 행을 보존한다. 같은 초안은 중복 행을 만들지 않는다. 현재 계획은 id 내림차순 첫 행이다. 새 요청 시작 시 이전 미승인 초안을 폐기하고 저장·요청 중에는 중복 동작을 막는다. 승인과 재실행 복원은 화면 및 저장 테스트로 검증한다.
 - AC5 apksigner verify, aapt dump badging, APK의 assets/index.android.bundle 확인과 별도로 adb install 후 Metro 없는 콜드 시작을 확인한다. 사용자 개인 폰·실키 유료 코칭은 별도 미검증 항목이다.
+AC2 전송은 expo/fetch의 redirect: error를 사용한다. Expo SDK 54 Android NativeRequest는 followRedirects(false)를 설정하며 NativeResponse가 redirect ERROR를 거부한다. fixture에서 redirect 정책과 리디렉션 실패 후 추가 전송 0회를 확인한다.
