@@ -182,9 +182,8 @@ public final class MainActivity extends Activity {
             SetInputView input = new SetInputView(this, new BigDecimal(plan.getString(0)), goal,
                     choices(goal), (kg, reps, partial, result) -> {
                         try {
-                            if (!LocalDate.now().equals(displayedDay)) {
+                            if (!LocalDate.now().equals(displayedDay) && refreshDailyTarget()) {
                                 result.complete(false);
-                                openExercise();
                                 return;
                             }
                             store.record(exercise, kg, reps, partial);
@@ -219,15 +218,18 @@ public final class MainActivity extends Activity {
         super.onPause();
     }
 
-    private void refreshDailyTarget() {
-        if (exercise == null) return;
+    private boolean refreshDailyTarget() {
+        if (exercise == null) return false;
         LocalDate today = LocalDate.now();
         try {
             DailyCoach.Target target = new DailyGoals(store).target(exercise, today);
-            if (!today.equals(displayedDay) || !Objects.equals(target, displayedTarget)) openExercise();
+            displayedDay = today;
+            if (Objects.equals(target, displayedTarget)) return false;
+            openExercise();
         } catch (SQLiteException failure) {
             openExercise();
         }
+        return true;
     }
 
     private void addFeedbackActions() {

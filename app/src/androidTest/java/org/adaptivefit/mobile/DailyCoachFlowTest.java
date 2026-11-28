@@ -62,7 +62,7 @@ public final class DailyCoachFlowTest extends Instrumentation {
                 stage = "cold read of saved plans and actuals";
                 check(goals.target(EXERCISE, today).reps() == 7, "weight plan lost");
                 check(goals.target(null, today).minutes() == 22, "cardio plan lost");
-                check(number("SELECT count(*) FROM actual") == 15, "wrong persisted set count");
+                check(number("SELECT count(*) FROM actual") == 16, "wrong persisted set count");
             } else {
                 check(phase.isEmpty(), "unknown phase");
                 seed();
@@ -71,6 +71,7 @@ public final class DailyCoachFlowTest extends Instrumentation {
                 checkCardio();
                 checkDisconnected();
                 checkFailedAndStale();
+                checkUnplannedMidnightDraft();
             }
             result.putString("stream", "PASS daily coach " + (phase.isEmpty() ? "UI, provider requests, actuals and daily plans" : phase));
             status = Activity.RESULT_OK;
@@ -314,6 +315,54 @@ public final class DailyCoachFlowTest extends Instrumentation {
         click("feedback_finish_cardio");
         check(number("SELECT SUM(cardio_minutes) FROM workout_session WHERE kind='cardio'") == 35, "wrong actual minutes");
         closeCoach();
+    }
+
+    private void checkUnplannedMidnightDraft() throws Exception {
+        stage = "unplanned exercise keeps its editable draft across midnight";
+        closeCoach();
+        page = main;
+        check(goals.target(OTHER, yesterday) == null && goals.target(OTHER, today) == null,
+                "fixture unexpectedly has a daily target");
+        ui(() -> {
+            View root = main.getWindow().getDecorView();
+            findText(root, main.getString(R.string.choose_exercise)).performClick();
+            findText(main.getWindow().getDecorView(), OTHER).performClick();
+            return null;
+        });
+        waitForIdleSync();
+        ui(() -> {
+            View root = main.getWindow().getDecorView();
+            EditText draft = firstWeightField(root);
+            check(draft != null, "set entry field missing");
+            View edit = findText(root, main.getString(R.string.edit_weight, "40"));
+            check(edit != null && edit.performClick() && draft.isShown(), "cannot open weight draft");
+            draft.setText("37.5");
+            // Advance just the rendered screen's date without changing the emulator's clock.
+            java.lang.reflect.Field displayed = MainActivity.class.getDeclaredField("displayedDay");
+            displayed.setAccessible(true);
+            displayed.set(main, yesterday);
+            check(tagged(4).performClick(), "actual repetitions tap");
+            check(draft.isAttachedToWindow() && draft == firstWeightField(main.getWindow().getDecorView()),
+                    "rollover rebuilt an unplanned set input");
+            return null;
+        });
+        waitForIdleSync();
+        try (Cursor row = workouts.latest(OTHER)) {
+            check(row.moveToFirst() && "37.5".equals(row.getString(0)) && row.getInt(1) == 4,
+                    "rollover lost the edited actual weight or count tap");
+        }
+        check(number("SELECT count(*) FROM actual") == 16, "rollover must add one set");
+    }
+
+    private static EditText firstWeightField(View view) {
+        if (view instanceof EditText field) return field;
+        if (view instanceof ViewGroup group) {
+            for (int i = 0; i < group.getChildCount(); i++) {
+                EditText field = firstWeightField(group.getChildAt(i));
+                if (field != null) return field;
+            }
+        }
+        return null;
     }
 
     private void checkDisconnected() throws Exception {
