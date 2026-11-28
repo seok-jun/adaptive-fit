@@ -1,0 +1,45 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'org.adaptivefit.mobile'
+    compileSdk 36
+    buildToolsVersion '36.0.0'
+
+    defaultConfig {
+        applicationId 'org.adaptivefit.mobile'
+        minSdk 26
+        targetSdk 36
+        versionCode 1
+        versionName '0.1.0'
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    buildFeatures {
+        buildConfig true
+    }
+}
+
+dependencyLocking {
+    lockAllConfigurations()
+}
+
+dependencies {
+    testImplementation 'junit:junit:4.13.2'
+}
+
+// Lint resolves a separate tool classpath from the Android Gradle plugin.
+def toolVersions = new Properties()
+rootProject.file('gradle/security-versions.properties').withInputStream { toolVersions.load(it) }
+configurations.matching { it.name.toLowerCase().contains('lint') }.configureEach {
+    resolutionStrategy.eachDependency { details ->
+        def fixed = toolVersions.getProperty(details.requested.group + ':' + details.requested.name)
+        if (fixed != null) {
+            details.useVersion(fixed)
+        }
+    }
+}
