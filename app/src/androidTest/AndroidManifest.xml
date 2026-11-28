@@ -1,4 +1,11 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <!-- AGP injects its default runner into the first element. Keep the two
+         explicitly named test components below intact through that pass. -->
+    <instrumentation android:name="android.test.InstrumentationTestRunner" tools:node="remove" />
+    <instrumentation
+        android:name="org.adaptivefit.mobile.CoachingContractTest"
+        android:targetPackage="org.adaptivefit.mobile" />
     <instrumentation
         android:name="org.adaptivefit.mobile.SetInputContractTest"
         android:targetPackage="org.adaptivefit.mobile" />
