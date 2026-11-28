@@ -1,0 +1,5 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <instrumentation
+        android:name="org.adaptivefit.mobile.SetInputContractTest"
+        android:targetPackage="org.adaptivefit.mobile" />
+</manifest>
