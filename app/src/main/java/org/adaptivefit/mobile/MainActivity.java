@@ -2,6 +2,7 @@ package org.adaptivefit.mobile;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.Intent;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteException;
 import android.os.Bundle;
@@ -56,6 +57,10 @@ public final class MainActivity extends Activity {
         Foundation.add(page, button, R.dimen.space_small);
     }
 
+    private void coachingButton() {
+        button(getString(R.string.coaching_title), () -> startActivity(new Intent(this, CoachingActivity.class)));
+    }
+
     private void choose() {
         exercise = null;
         getPreferences(MODE_PRIVATE).edit().remove("exercise").apply();
@@ -67,6 +72,7 @@ public final class MainActivity extends Activity {
                 openExercise();
             });
         }
+        coachingButton();
     }
 
     private EditText field(int resource, int flags) {
@@ -115,6 +121,7 @@ public final class MainActivity extends Activity {
     private void openExercise() {
         page(R.string.choose_exercise);
         button(getString(R.string.choose_exercise), this::choose);
+        coachingButton();
         try (Cursor plan = store.plan(exercise)) {
             if (!plan.moveToFirst()) {
                 setup();
