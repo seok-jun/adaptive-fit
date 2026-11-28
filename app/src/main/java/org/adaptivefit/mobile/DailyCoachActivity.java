@@ -75,7 +75,8 @@ public final class DailyCoachActivity extends Activity {
         int cardio = names.size();
         names.add(getString(R.string.daily_coach_cardio));
         String initial = state == null ? getIntent().getStringExtra("exercise") : state.getString("exercise");
-        int index = state != null && initial == null ? cardio : Math.max(0, names.indexOf(initial));
+        boolean openCardio = state == null ? getIntent().getBooleanExtra("cardio", false) : initial == null;
+        int index = openCardio ? cardio : Math.max(0, names.indexOf(initial));
         exercise = index == cardio ? null : names.get(index);
         Spinner picker = new Spinner(this);
         picker.setTag("daily_exercise");

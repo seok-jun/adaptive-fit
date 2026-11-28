@@ -2,8 +2,8 @@
     <string name="daily_coach_title">오늘의 운동 코칭</string>
     <string name="daily_coach_cardio">유산소</string>
     <string name="daily_coach_ask">질문 보내기</string>
-    <string name="daily_coach_question">운동 기록에 관해 질문하기</string>
-    <string name="daily_coach_suggest_goal">내 목표와 최근 기록을 보면 오늘은 어떻게 운동할까?</string>
+    <string name="daily_coach_question">질문이나 바꾸고 싶은 점</string>
+    <string name="daily_coach_suggest_goal">오늘 운동 목표를 조금 가볍게 바꿔 줘.</string>
     <string name="daily_coach_suggest_yesterday">어제 목표와 실제 운동 기록을 비교해 줘.</string>
     <string name="daily_coach_date">%1$s · %2$s 기준</string>
     <string name="daily_coach_recent">오늘·어제의 실제 합계와 최근 기록 최대 10건</string>

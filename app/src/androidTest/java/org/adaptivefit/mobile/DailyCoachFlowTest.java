@@ -20,6 +20,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.FutureTask;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 /** Run on a fresh synthetic install; use phase=afterRestart after force-stopping the app. */
@@ -51,7 +52,7 @@ public final class DailyCoachFlowTest extends Instrumentation {
         DailyCoach.Provider original = DailyCoach.provider;
         try {
             stage = "fixture preflight";
-            if (phase.isEmpty()) {
+            if (phase.isEmpty() || "automatic".equals(phase)) {
                 check(!getTargetContext().getDatabasePath("workouts.db").exists(), "fresh test install required");
                 check(!getTargetContext().getDatabasePath("coaching.db").exists(), "pre-existing coaching data");
             }
@@ -63,6 +64,10 @@ public final class DailyCoachFlowTest extends Instrumentation {
                 check(goals.target(EXERCISE, today).reps() == 7, "weight plan lost");
                 check(goals.target(null, today).minutes() == 22, "cardio plan lost");
                 check(number("SELECT count(*) FROM actual") == 16, "wrong persisted set count");
+            } else if ("automatic".equals(phase)) {
+                seed();
+                checkV3Migration();
+                checkDefaultCoaching();
             } else {
                 check(phase.isEmpty(), "unknown phase");
                 seed();
@@ -120,7 +125,7 @@ public final class DailyCoachFlowTest extends Instrumentation {
         workouts.close();
         workouts = new WorkoutStore(getTargetContext());
         goals = new DailyGoals(workouts);
-        check(number("PRAGMA user_version") == 3, "v2 migration did not run");
+        check(number("PRAGMA user_version") == 4, "v2 migration did not run");
         check(number("SELECT count(*) FROM actual") == 14, "migration lost sets");
         check(workouts.latestReceipt("cardio") == id, "migration lost receipt");
         goals.save(EXERCISE, yesterday, new DailyCoach.Target(new BigDecimal("45"), 10, 4, 0));
@@ -130,6 +135,171 @@ public final class DailyCoachFlowTest extends Instrumentation {
     private void insertSet(String exercise, int reps, int partial, long timestamp) {
         workouts.getWritableDatabase().execSQL("INSERT INTO actual(exercise,weight,reps,partial,recorded_at)"
                 + " VALUES(?, '40', ?, ?, ?)", new Object[]{exercise, reps, partial, timestamp});
+    }
+
+    private void checkV3Migration() {
+        stage = "retain v3 daily goals, facts and receipts after upgrade";
+        String before = actuals();
+        long receipt = workouts.latestReceipt("cardio");
+        SQLiteDatabase db = workouts.getWritableDatabase();
+        db.execSQL("ALTER TABLE daily_goal DROP COLUMN feedback");
+        db.execSQL("ALTER TABLE daily_goal DROP COLUMN citations");
+        db.setVersion(3);
+        workouts.close();
+        workouts = new WorkoutStore(getTargetContext());
+        goals = new DailyGoals(workouts);
+        check(number("PRAGMA user_version") == 4, "v3 upgrade missing");
+        DailyCoach.Target old = goals.target(EXERCISE, yesterday);
+        check(old.kg().compareTo(new BigDecimal("45")) == 0 && old.reps() == 10 && old.sets() == 4,
+                "v3 weight goal lost");
+        check(goals.target(null, yesterday).minutes() == 30 && goals.target(null, today) == null,
+                "v3 cardio goal or date changed");
+        check(actuals().equals(before) && workouts.latestReceipt("cardio") == receipt, "upgrade changed actuals");
+    }
+
+    private void choose(String exercise, boolean fromSetPage) throws Exception {
+        ui(() -> {
+            if (fromSetPage) findText(main.getWindow().getDecorView(), main.getString(R.string.choose_exercise)).performClick();
+            View item = findText(main.getWindow().getDecorView(), exercise);
+            check(item != null && item.performClick(), "cannot select exercise " + exercise);
+            return null;
+        });
+        waitForIdleSync();
+    }
+
+    private void checkDefaultCoaching() throws Exception {
+        String initial = actuals();
+        stage = "unconnected automatic coaching leaves set input usable";
+        coaching.saveGoal(CoachingStore.GROWTH);
+        DailyCoach.provider = null;
+        main = (MainActivity) launch(MainActivity.class);
+        page = main;
+        choose(EXERCISE, false);
+        check(ui(() -> tagged(8).isEnabled()), "set input blocked without provider");
+        check(goals.target(EXERCISE, today) == null && actuals().equals(initial), "unconnected entry wrote data");
+
+        stage = "automatic weight goal, deduplication and editable actual draft";
+        CountDownLatch entered = new CountDownLatch(1), release = new CountDownLatch(1);
+        AtomicInteger calls = new AtomicInteger();
+        DailyCoach.provider = request -> {
+            calls.incrementAndGet();
+            entered.countDown();
+            check(release.await(7, TimeUnit.SECONDS), "weight provider release");
+            return respond(request);
+        };
+        choose(EXERCISE, true);
+        check(entered.await(4, TimeUnit.SECONDS), "weight workout did not request default coaching");
+        DefaultCoach secondBinding = new DefaultCoach(getTargetContext(), workouts);
+        try {
+            ui(() -> {
+                secondBinding.bind(EXERCISE, state -> {});
+                View root = main.getWindow().getDecorView();
+                View edit = findText(root, main.getString(R.string.edit_weight, "40"));
+                check(edit != null && edit.performClick(), "unable to edit live weight draft");
+                firstWeightField(root).setText("37.5");
+                return null;
+            });
+            release.countDown();
+            awaitFeedback(CoachingStore.GROWTH);
+        } finally {
+            release.countDown();
+            ui(() -> { secondBinding.unbind(); return null; });
+        }
+
+        DailyCoach.Request request = received.get();
+        check(today.equals(request.day()) && request.todayTarget() == null
+                        && request.yesterdayTarget().sets() == 4 && request.goal().equals(CoachingStore.GROWTH),
+                "automatic request omitted day, goal or yesterday's plan");
+        String prior = evidence(request, DailyGoals.totalRef(EXERCISE, yesterday));
+        check(prior.contains("2세트") && prior.contains("14회") && prior.contains("1회"), "wrong yesterday facts");
+        awaitScreen(prior);
+        check(goals.target(EXERCISE, today).sets() == 3 && goals.target(EXERCISE, yesterday).sets() == 4,
+                "automatic plan replaced previous day");
+        check(calls.get() == 1 && actuals().equals(initial), "duplicated call or fake actual record");
+        check(ui(() -> firstWeightField(main.getWindow().getDecorView()).getText().toString().equals("37.5")),
+                "automatic response overwrote edited weight");
+        click(Integer.valueOf(8));
+        try (Cursor row = workouts.latest(EXERCISE)) {
+            check(row.moveToFirst() && "37.5".equals(row.getString(0)) && row.getInt(1) == 8,
+                    "automatic goal replaced actual set draft on write");
+        }
+        choose(EXERCISE, true);
+        awaitFeedback(CoachingStore.GROWTH);
+        awaitScreen(prior);
+        check(calls.get() == 1, "saved weight coaching requested again");
+        checkAutoCardio();
+        checkManualPriority();
+    }
+
+    private void openCardio(String key) {
+        page = startActivitySync(new Intent(getTargetContext(), FeedbackActivity.class)
+                .putExtra("mode", "cardio").putExtra("key", key).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        waitForIdleSync();
+    }
+
+    private void checkAutoCardio() throws Exception {
+        stage = "automatic cardio goal and actual minutes remain separate";
+        String initial = actuals();
+        String key = workouts.newCardio();
+        CountDownLatch entered = new CountDownLatch(1), release = new CountDownLatch(1);
+        AtomicInteger calls = new AtomicInteger();
+        DailyCoach.provider = request -> {
+            calls.incrementAndGet();
+            entered.countDown();
+            check(release.await(7, TimeUnit.SECONDS), "cardio provider release");
+            return respond(request);
+        };
+        try {
+            openCardio(key);
+            check(entered.await(4, TimeUnit.SECONDS), "cardio did not request automatically");
+            edit("feedback_minutes", "13");
+            release.countDown();
+            awaitFeedback(CoachingStore.GROWTH);
+        } finally {
+            release.countDown();
+        }
+        DailyCoach.Request request = received.get();
+        check(request.exercise() == null && request.yesterdayTarget().minutes() == 30, "cardio request scope");
+        String prior = evidence(request, DailyGoals.totalRef(null, yesterday));
+        check(prior.contains("16분"), "prior cardio target treated as completed minutes");
+        awaitScreen(prior);
+        check(goals.target(null, today).minutes() == 20 && actuals().equals(initial), "cardio goal wrote actuals");
+        check(ui(() -> ((TextView) tagged("feedback_minutes")).getText().toString().equals("13")), "lost draft minutes");
+        closeCoach();
+        openCardio(key);
+        awaitFeedback(CoachingStore.GROWTH);
+        check(calls.get() == 1, "duplicate cardio request on reentry");
+        click("feedback_finish_cardio");
+        check(number("SELECT SUM(cardio_minutes) FROM workout_session WHERE kind='cardio'") == 29,
+                "auto target replaced actual minutes on write");
+        closeCoach();
+        page = main;
+    }
+
+    private void checkManualPriority() throws Exception {
+        stage = "manual target wins over pending automatic response";
+        String initial = actuals();
+        CountDownLatch entered = new CountDownLatch(1), release = new CountDownLatch(1);
+        DailyCoach.provider = request -> {
+            entered.countDown();
+            check(release.await(7, TimeUnit.SECONDS), "manual priority provider release");
+            return new DailyCoach.Response(request.id(), "무시할 기본 답변",
+                    Collections.singletonList(DailyGoals.totalRef(OTHER, yesterday)),
+                    new DailyCoach.Target(new BigDecimal("50"), 9, 5, 0));
+        };
+        try {
+            choose(OTHER, true);
+            check(entered.await(4, TimeUnit.SECONDS), "missing competing default request");
+            // Same write used by the manual editor. The foreground workout is still bound to the pending reply.
+            goals.save(OTHER, today, new DailyCoach.Target(new BigDecimal("31"), 5, 2, 0));
+            release.countDown();
+            awaitScreen("31");
+        } finally {
+            release.countDown();
+        }
+        check(goals.target(OTHER, today).reps() == 5 && actuals().equals(initial), "default won write race");
+        check(ui(() -> findText(main.getWindow().getDecorView(), "무시할 기본 답변") == null),
+                "stale default explanation shown for manual target");
     }
 
     private String actuals() {
@@ -220,7 +390,8 @@ public final class DailyCoachFlowTest extends Instrumentation {
     private void checkRequestsAndEdits() throws Exception {
         stage = "open coaching from active exercise";
         coaching.saveGoal(CoachingStore.GROWTH);
-        DailyCoach.provider = this::respond;
+        // Exercise manual first setup on a screen that has no automatic provider yet.
+        DailyCoach.provider = null;
         main = (MainActivity) launch(MainActivity.class);
         page = main;
         ui(() -> {
@@ -239,6 +410,7 @@ public final class DailyCoachFlowTest extends Instrumentation {
         }
         waitForIdleSync();
         String initial = actuals();
+        DailyCoach.provider = this::respond;
         String recommended = ui(() -> ((TextView) tagged("daily_suggest_0")).getText().toString());
         click("daily_suggest_0");
         awaitFeedback(CoachingStore.GROWTH);
@@ -255,8 +427,10 @@ public final class DailyCoachFlowTest extends Instrumentation {
 
         for (String goal : new String[]{CoachingStore.LOSS, CoachingStore.MAINTAIN}) {
             coaching.saveGoal(goal);
+            DailyCoach.provider = null;
             closeCoach();
             page = launch(DailyCoachActivity.class);
+            DailyCoach.provider = this::respond;
             edit("daily_question", QUESTION);
             click("daily_ask");
             awaitFeedback(goal);
@@ -319,6 +493,7 @@ public final class DailyCoachFlowTest extends Instrumentation {
 
     private void checkUnplannedMidnightDraft() throws Exception {
         stage = "unplanned exercise keeps its editable draft across midnight";
+        DailyCoach.provider = null;
         closeCoach();
         page = main;
         check(goals.target(OTHER, yesterday) == null && goals.target(OTHER, today) == null,

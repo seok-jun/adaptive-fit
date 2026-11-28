@@ -10,7 +10,7 @@ import java.time.LocalDate;
 
 final class WorkoutStore extends SQLiteOpenHelper {
     WorkoutStore(Context context) {
-        super(context, "workouts.db", null, 3, db -> {
+        super(context, "workouts.db", null, 4, db -> {
             throw new android.database.sqlite.SQLiteDatabaseCorruptException("Cannot access damaged workout database");
         });
     }
@@ -29,6 +29,7 @@ final class WorkoutStore extends SQLiteOpenHelper {
         db.execSQL("CREATE INDEX actual_exercise ON actual(exercise, id)");
         addSessions(db);
         addDailyGoals(db);
+        addDailyFeedback(db);
     }
 
     private void addSessions(SQLiteDatabase db) {
@@ -56,12 +57,18 @@ final class WorkoutStore extends SQLiteOpenHelper {
                 + " AND reps=0 AND sets=0 AND minutes>0)))");
     }
 
+    private void addDailyFeedback(SQLiteDatabase db) {
+        db.execSQL("ALTER TABLE daily_goal ADD COLUMN feedback TEXT");
+        db.execSQL("ALTER TABLE daily_goal ADD COLUMN citations TEXT");
+    }
+
     @Override public void onUpgrade(SQLiteDatabase db, int from, int to) {
-        if (to != 3 || (from != 1 && from != 2)) {
+        if (to != 4 || from < 1 || from > 3) {
             throw new IllegalStateException("Unknown workout database upgrade " + from + " → " + to);
         }
         if (from == 1) addSessions(db);
-        addDailyGoals(db);
+        if (from < 3) addDailyGoals(db);
+        addDailyFeedback(db);
     }
 
     void configure(String exercise, BigDecimal weight, int goal) {

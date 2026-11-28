@@ -34,6 +34,7 @@ public final class FeedbackActivity extends Activity {
         @Override public void onReceive(Context context, Intent intent) { refresh(); }
     };
     private WorkoutStore workouts;
+    private DefaultCoach defaultCoach;
     private CoachingStore coaching;
     private FeedbackRepository repository;
     private FeedbackText format;
@@ -47,6 +48,7 @@ public final class FeedbackActivity extends Activity {
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
         workouts = new WorkoutStore(this);
+        defaultCoach = new DefaultCoach(this, workouts);
         coaching = new CoachingStore(this);
         repository = new FeedbackRepository(workouts, coaching);
         format = new FeedbackText(this);
@@ -80,18 +82,21 @@ public final class FeedbackActivity extends Activity {
     }
 
     @Override protected void onPause() {
+        defaultCoach.unbind();
         unregisterReceiver(zoneChanged);
         cancelInference();
         super.onPause();
     }
 
     @Override protected void onDestroy() {
+        defaultCoach.unbind();
         workouts.close();
         coaching.close();
         super.onDestroy();
     }
 
     private void layout() {
+        defaultCoach.unbind();
         ScrollView scroll = new ScrollView(this);
         scroll.setSaveFromParentEnabled(false);
         scroll.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS);
@@ -209,8 +214,11 @@ public final class FeedbackActivity extends Activity {
         }
         layout();
         label(getString(R.string.feedback_finish_cardio), true);
-        DailyCoach.Target daily = new DailyGoals(workouts).target(null, LocalDate.now());
-        if (daily != null) label(getString(R.string.daily_minutes_target, daily.minutes()), false);
+        DefaultCoachView daily = new DefaultCoachView(this, true);
+        column.addView(daily);
+        defaultCoach.bind(null, daily::show);
+        button("daily_entry", getString(R.string.default_coach_change), () -> startActivity(
+                new Intent(this, DailyCoachActivity.class).putExtra("cardio", true)));
         TextView caption = label(getString(R.string.feedback_minutes), false);
         EditText minutes = new EditText(this);
         minutes.setTag("feedback_minutes");

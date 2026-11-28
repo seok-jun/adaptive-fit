@@ -2,6 +2,8 @@ package org.adaptivefit.mobile;
 
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
+import org.json.JSONArray;
+import org.json.JSONException;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -29,9 +31,49 @@ final class DailyGoals {
                 + "WHERE day=? AND kind=? AND exercise=?", new String[]{day.toString(),
                 exercise == null ? "cardio" : "weight", exercise == null ? "" : exercise})) {
             if (!row.moveToFirst()) return null;
-            return new DailyCoach.Target(row.isNull(0) ? null : new BigDecimal(row.getString(0)),
-                    row.getInt(1), row.getInt(2), row.getInt(3));
+            return targetFrom(row);
         }
+    }
+
+    private static DailyCoach.Target targetFrom(Cursor row) {
+        return new DailyCoach.Target(row.isNull(0) ? null : new BigDecimal(row.getString(0)),
+                row.getInt(1), row.getInt(2), row.getInt(3));
+    }
+
+    DefaultCoach.State saved(String exercise, LocalDate day) {
+        try (Cursor row = workouts.getReadableDatabase().rawQuery("SELECT weight,reps,sets,minutes,feedback,citations"
+                + " FROM daily_goal WHERE day=? AND kind=? AND exercise=?", new String[]{day.toString(),
+                exercise == null ? "cardio" : "weight", exercise == null ? "" : exercise})) {
+            if (!row.moveToFirst()) return null;
+            List<String> citations = new ArrayList<>();
+            if (!row.isNull(5)) {
+                try {
+                    JSONArray json = new JSONArray(row.getString(5));
+                    for (int i = 0; i < json.length(); i++) citations.add(json.getString(i));
+                } catch (JSONException e) {
+                    throw new IllegalStateException("Invalid daily coaching evidence", e);
+                }
+            }
+            return new DefaultCoach.State(DefaultCoach.Status.READY, targetFrom(row), row.getString(4),
+                    Collections.unmodifiableList(citations));
+        }
+    }
+
+    void saveFirst(DailyCoach.Request request, DailyCoach.Response response) {
+        if (!response.valid(request) || response.proposal() == null) {
+            throw new IllegalArgumentException("Invalid default coaching response");
+        }
+        JSONArray citations = new JSONArray();
+        for (DailyCoach.Evidence item : request.evidence()) {
+            if (response.refs().contains(item.ref())) citations.put(item.text());
+        }
+        String exercise = request.exercise();
+        DailyCoach.Target target = response.proposal();
+        workouts.getWritableDatabase().execSQL("INSERT OR IGNORE INTO daily_goal "
+                + "(day,kind,exercise,weight,reps,sets,minutes,feedback,citations) VALUES (?,?,?,?,?,?,?,?,?)",
+                new Object[]{request.day().toString(), exercise == null ? "cardio" : "weight",
+                        exercise == null ? "" : exercise, target.kg() == null ? null : target.kg().toPlainString(),
+                        target.reps(), target.sets(), target.minutes(), response.feedback(), citations.toString()});
     }
 
     void save(String exercise, LocalDate day, DailyCoach.Target target) {
