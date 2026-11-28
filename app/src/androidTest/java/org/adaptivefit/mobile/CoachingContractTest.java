@@ -4,10 +4,12 @@ import android.annotation.TargetApi;
 import android.app.Activity;
 import android.app.Instrumentation;
 import android.content.Context;
+import android.content.ContextWrapper;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.database.DatabaseUtils;
 import android.database.sqlite.SQLiteDatabase;
+import android.database.sqlite.SQLiteDatabaseCorruptException;
 import android.os.Bundle;
 import android.os.Parcel;
 import android.view.View;
@@ -20,11 +22,16 @@ import android.widget.RadioButton;
 import android.widget.RadioGroup;
 import android.widget.TextView;
 
+import java.io.File;
+import java.io.RandomAccessFile;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.time.LocalDate;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.concurrent.FutureTask;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
 
 /** Run on the dedicated synthetic emulator. Only known fixture keys are removed. */
@@ -99,7 +106,7 @@ public final class CoachingContractTest extends Instrumentation {
         }
         if (passed) report.putString("stream", "PASS: " + ("afterRestart".equals(phase)
                 ? "cold restoration and fixture cleanup"
-                : "both entry points, missing values, legacy reads, corrections, validation, failures, retry and recreation"));
+                : "both entry points, missing values, corrupt file preservation, legacy reads, corrections, validation, failures, retry and recreation"));
         finish(passed ? Activity.RESULT_OK : Activity.RESULT_CANCELED, report);
     }
 
@@ -133,6 +140,9 @@ public final class CoachingContractTest extends Instrumentation {
                 .putString(EARLY.toString(), "80.5").putString(LATE.toString(), "78.6")
                 .putInt(BAD.toString(), 73).commit());
         Map<String, ?> original = legacy.getAll();
+        stage = "corrupt database preservation";
+        checkCorruptDatabase();
+        stage = "read-only legacy fallback";
         openCoaching();
         pick(true, LATE);
         pick(false, EARLY);
@@ -274,6 +284,55 @@ public final class CoachingContractTest extends Instrumentation {
         backToMain();
         ui(() -> has(main, R.string.history));
         require(exercise.equals(selection.getString("exercise", null)) && setCount() == sets);
+    }
+
+    private void checkCorruptDatabase() throws Exception {
+        Context target = getTargetContext();
+        File directory = Files.createTempDirectory(target.getCacheDir().toPath(), "coaching-contract").toFile();
+        File file = new File(directory, "coaching.db");
+        AtomicBoolean accessedLegacy = new AtomicBoolean();
+        Context fixture = new ContextWrapper(target) {
+            @Override public File getDatabasePath(String name) {
+                require("coaching.db".equals(name));
+                return file;
+            }
+
+            @Override public SharedPreferences getSharedPreferences(String name, int mode) {
+                require("coaching".equals(name));
+                accessedLegacy.set(true);
+                return legacy;
+            }
+        };
+        try {
+            try (CoachingStore fresh = new CoachingStore(fixture)) {
+                fresh.saveGoal(CoachingStore.GROWTH);
+                fresh.saveWeight(EARLY, new BigDecimal("82.3"));
+            }
+            try (RandomAccessFile bytes = new RandomAccessFile(file, "rw")) {
+                bytes.write("damaged header!!".getBytes(StandardCharsets.US_ASCII));
+            }
+            byte[] damaged = Files.readAllBytes(file.toPath());
+            try (CoachingStore damagedStore = new CoachingStore(fixture)) {
+                expectCorruption(damagedStore::goal);
+                expectCorruption(() -> damagedStore.weight(EARLY));
+                expectCorruption(() -> damagedStore.saveWeight(EARLY, new BigDecimal("75.4")));
+                expectCorruption(() -> damagedStore.saveGoal(CoachingStore.MAINTAIN));
+            }
+            require(!accessedLegacy.get());
+            require(Arrays.equals(damaged, Files.readAllBytes(file.toPath())));
+        } finally {
+            SQLiteDatabase.deleteDatabase(file);
+            Files.delete(directory.toPath());
+        }
+    }
+
+    private static void expectCorruption(Runnable operation) {
+        try {
+            operation.run();
+        } catch (SQLiteDatabaseCorruptException expected) {
+            return;
+        }
+        throw new AssertionError("Corrupt database accepted");
     }
 
     private void cleanFixture() {

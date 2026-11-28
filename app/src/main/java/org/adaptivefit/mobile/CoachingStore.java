@@ -4,6 +4,7 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
+import android.database.sqlite.SQLiteDatabaseCorruptException;
 import android.database.sqlite.SQLiteException;
 import android.database.sqlite.SQLiteOpenHelper;
 import android.database.sqlite.SQLiteStatement;
@@ -18,7 +19,10 @@ final class CoachingStore extends SQLiteOpenHelper {
     private final Context context;
 
     CoachingStore(Context context) {
-        super(context, "coaching.db", null, 1);
+        super(context, "coaching.db", null, 1, db -> {
+            // The platform default deletes the file and retries with an empty database.
+            throw new SQLiteDatabaseCorruptException("Cannot access damaged coaching database");
+        });
         this.context = context;
     }
 
