@@ -132,11 +132,26 @@ public class FeedbackContractTest {
             String message = text.feedback(r, output);
             assertTrue(message, message.contains(values[i]));
             assertTrue(message.contains(RANGE.label()));
+            if (output == LocalFeedbackModel.Evidence.REPS) {
+                assertTrue(message, message.contains("진행 중"));
+                assertTrue(message, message.contains(r.previousRange().label()));
+                assertTrue(message, message.contains("레그 프레스 직전과의 차이 · 수행량 +250 kg×회 · 전 구간 0회 · 구간 반복 +5회"));
+                assertTrue(message, message.contains("벤치 프레스 직전과의 차이 · 수행량 -40 kg×회 · 전 구간 0회 · 구간 반복 0회"));
+            }
             String summary = text.summary(r);
             for (String s : new String[]{"진행 중","2024-12-23","전 구간 18회","구간 반복 5회","160 kg×회","유산소 25분"}) {
                 assertTrue(summary, summary.contains(s));
             }
         }
+    }
+
+    @Test public void differentExercisesHaveNoVolumeOrRepDelta() {
+        FeedbackRepository.Builder previous = new FeedbackRepository.Builder();
+        previous.set("스쿼트", new BigDecimal("60"), 10, 0);
+        FeedbackRepository.Result r = result("growth", actuals(), previous.build(), NONE);
+        String message = text.feedback(r, LocalFeedbackModel.Evidence.REPS);
+        assertTrue(message.contains("600 kg×회"));
+        assertFalse(message.contains("직전과의 차이"));
     }
 
     @Test public void absentInputsAndCardioOnlyAreGrounded() {

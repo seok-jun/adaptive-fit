@@ -42,6 +42,27 @@ final class FeedbackText {
         return lines.toString();
     }
 
+    private String exerciseChanges(FeedbackRepository.Result r) {
+        StringJoiner lines = new StringJoiner("\n");
+        for (Map.Entry<String,FeedbackRepository.Exercise> entry : r.current().exercises().entrySet()) {
+            FeedbackRepository.Exercise before = r.previous().exercises().get(entry.getKey());
+            if (before == null) continue;
+            FeedbackRepository.Exercise now = entry.getValue();
+            lines.add(text(R.string.feedback_exercise_change, entry.getKey(),
+                    signed(now.volume().subtract(before.volume())),
+                    signed(BigDecimal.valueOf(now.full() - before.full())),
+                    signed(BigDecimal.valueOf(now.partial() - before.partial()))));
+        }
+        return lines.toString();
+    }
+
+    private String growthEvidence(FeedbackRepository.Result r) {
+        String current = exercises(r.current());
+        String changes = exerciseChanges(r);
+        if (changes.isEmpty()) return current;
+        return current + "\n" + text(R.string.feedback_previous, r.previousRange().label()) + "\n" + changes;
+    }
+
     private String measurements(FeedbackRepository.Measurements m) {
         if (m.first() == null) return text(R.string.feedback_no_measure);
         String first = text(R.string.feedback_measure, m.first(), number(m.firstKg()));
@@ -57,14 +78,19 @@ final class FeedbackText {
                 signed(BigDecimal.valueOf(r.current().sets() - r.previous().sets()))));
         if (r.compareMinutes()) lines.add(text(R.string.feedback_minutes_change,
                 signed(BigDecimal.valueOf(r.current().minutes() - r.previous().minutes()))));
+        String changes = exerciseChanges(r);
+        if (!changes.isEmpty()) lines.add(changes);
         if (!r.compareSets() && !r.compareMinutes()) lines.add(text(R.string.feedback_no_compare));
         return lines.toString();
     }
 
+    private String currentRange(FeedbackRepository.Result r) {
+        return r.range().label() + (r.ongoing() ? " · " + text(R.string.feedback_ongoing) : "");
+    }
+
     String summary(FeedbackRepository.Result r) {
         StringJoiner lines = new StringJoiner("\n");
-        lines.add(text(R.string.feedback_current, r.range().label())
-                + (r.ongoing() ? " · " + text(R.string.feedback_ongoing) : ""));
+        lines.add(text(R.string.feedback_current, currentRange(r)));
         lines.add(r.current().hasWorkout() ? performance(r.current()) : text(R.string.feedback_empty));
         if (r.current().sets() > 0) lines.add(exercises(r.current()));
         lines.add(measurements(r.weights()));
@@ -76,11 +102,11 @@ final class FeedbackText {
         if (choice == null || !choice.available(r)) throw new IllegalArgumentException("Unavailable evidence");
         String evidence = switch (choice) {
             case PERFORMANCE -> performance(r.current());
-            case REPS -> exercises(r.current());
+            case REPS -> growthEvidence(r);
             case MINUTES -> text(R.string.feedback_duration, r.current().minutes());
             case WEIGHT -> measurements(r.weights()) + "\n" + performance(r.current());
             case COMPARISON -> comparison(r);
         };
-        return text(R.string.feedback_ai, r.range().label(), evidence);
+        return text(R.string.feedback_ai, currentRange(r), evidence);
     }
 }

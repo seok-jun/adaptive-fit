@@ -67,6 +67,7 @@
     <string name="feedback_empty">이 범위에 기록한 운동이 없습니다.</string>
     <string name="feedback_sets">웨이트 %1$d세트 · 전 구간 %2$d회 · 구간 반복 %3$d회</string>
     <string name="feedback_exercise">%1$s · %2$d세트 · 전 구간 %3$d회 · 구간 반복 %4$d회 · 수행량 %5$s kg×회</string>
+    <string name="feedback_exercise_change">%1$s 직전과의 차이 · 수행량 %2$s kg×회 · 전 구간 %3$s회 · 구간 반복 %4$s회</string>
     <string name="feedback_load">%1$s kg × %2$d회</string>
     <string name="feedback_duration">유산소 %1$d분</string>
     <string name="feedback_measure">실측 체중 · %1$s %2$s kg</string>
