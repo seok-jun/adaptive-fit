@@ -191,10 +191,13 @@ public final class MainActivity extends Activity {
             setInput = new SetInputView(this, fallbackWeight, fallbackReps,
                     choices(fallbackReps), (kg, reps, partial, result) -> {
                         try {
-                            if (!LocalDate.now().equals(displayedDay)) {
+                            LocalDate today = LocalDate.now();
+                            if (!today.equals(displayedDay)) {
                                 bindDefault();
-                                result.complete(false);
-                                return;
+                                if (!today.equals(displayedDay)) {
+                                    result.complete(false);
+                                    return;
+                                }
                             }
                             store.record(exercise, kg, reps, partial);
                         } catch (SQLiteException failure) {

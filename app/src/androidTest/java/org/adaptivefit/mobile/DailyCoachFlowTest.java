@@ -159,7 +159,10 @@ public final class DailyCoachFlowTest extends Instrumentation {
 
     private void choose(String exercise, boolean fromSetPage) throws Exception {
         ui(() -> {
-            if (fromSetPage) findText(main.getWindow().getDecorView(), main.getString(R.string.choose_exercise)).performClick();
+            if (fromSetPage) {
+                View switchExercise = findText(main.getWindow().getDecorView(), main.getString(R.string.choose_exercise));
+                check(switchExercise != null && switchExercise.performClick(), "exercise picker is not available");
+            }
             View item = findText(main.getWindow().getDecorView(), exercise);
             check(item != null && item.performClick(), "cannot select exercise " + exercise);
             return null;
@@ -227,8 +230,9 @@ public final class DailyCoachFlowTest extends Instrumentation {
         awaitFeedback(CoachingStore.GROWTH);
         awaitScreen(prior);
         check(calls.get() == 1, "saved weight coaching requested again");
-        checkAutoCardio();
+        // Finish the weight race while its owning Activity is still in the foreground.
         checkManualPriority();
+        checkAutoCardio();
     }
 
     private void openCardio(String key) {

@@ -104,6 +104,7 @@ public final class SetInputView extends LinearLayout {
             weight.setVisibility(open ? VISIBLE : GONE);
             edit.setText(open ? context.getString(R.string.editing_weight)
                     : context.getString(R.string.edit_weight, weight.getText().toString()));
+            if (!open) applyDeferredIfIdle();
         });
         weight.addTextChangedListener(new android.text.TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
@@ -152,7 +153,10 @@ public final class SetInputView extends LinearLayout {
         });
         partial.setOnCheckedChangeListener((button, checked) -> {
             partialCount.setVisibility(checked ? VISIBLE : GONE);
-            if (!checked) partialCount.setSelection(0);
+            if (!checked) {
+                partialCount.setSelection(0);
+                applyDeferredIfIdle();
+            }
             updateEnabledCounts();
         });
 
@@ -199,6 +203,7 @@ public final class SetInputView extends LinearLayout {
                         } else {
                             outcome.setTextColor(context.getColor(R.color.error));
                             outcome.setText(R.string.save_failed);
+                            applyDeferredIfIdle();
                         }
                         updateEnabledCounts();
                     });
@@ -229,7 +234,7 @@ public final class SetInputView extends LinearLayout {
                     .setItems(labels, (ignored, index) -> submit.accept(first + index)).create();
             dialog.setOnDismissListener(ignored -> {
                 countDialogOpen = false;
-                if (deferredUpdate && !hasDraft()) useRecommendation();
+                applyDeferredIfIdle();
             });
             dialog.show();
         });
@@ -249,6 +254,10 @@ public final class SetInputView extends LinearLayout {
     private boolean hasDraft() {
         return editedWeight || weight.getVisibility() == VISIBLE || partial.isChecked()
                 || pending != null || countDialogOpen;
+    }
+
+    private void applyDeferredIfIdle() {
+        if (deferredUpdate && !hasDraft()) useRecommendation();
     }
 
     private void useRecommendation() {
