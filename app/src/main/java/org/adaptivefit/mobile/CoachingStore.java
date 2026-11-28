@@ -11,6 +11,8 @@ import android.database.sqlite.SQLiteStatement;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.SortedSet;
+import java.util.TreeSet;
 import java.util.regex.Pattern;
 
 final class CoachingStore extends SQLiteOpenHelper {
@@ -72,6 +74,21 @@ final class CoachingStore extends SQLiteOpenHelper {
         BigDecimal value = new BigDecimal(plain);
         if (value.signum() <= 0) throw new NumberFormatException();
         return value.stripTrailingZeros();
+    }
+
+    SortedSet<LocalDate> measurementDates(LocalDate first, LocalDate until) {
+        // A weight session can stay open for years. Visit stored date keys only.
+        SortedSet<LocalDate> dates = new TreeSet<>();
+        String start = first.toString(), end = until.toString();
+        try (Cursor rows = getReadableDatabase().rawQuery(
+                "SELECT key FROM coaching WHERE key >= ? AND key < ?", new String[]{start, end})) {
+            while (rows.moveToNext()) dates.add(LocalDate.parse(rows.getString(0)));
+        }
+        SharedPreferences legacy = context.getSharedPreferences("coaching", Context.MODE_PRIVATE);
+        for (String key : legacy.getAll().keySet()) {
+            if (key.compareTo(start) >= 0 && key.compareTo(end) < 0) dates.add(LocalDate.parse(key));
+        }
+        return dates;
     }
 
     BigDecimal weight(LocalDate day) {

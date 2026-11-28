@@ -14,6 +14,7 @@
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
         <provider android:name="ai.onnxruntime.TelemetryInitializer" tools:node="remove" />
         <activity android:name=".CameraSelectionActivity" android:exported="false" />
+        <activity android:name=".FeedbackActivity" android:exported="false" />
         <activity android:name=".CoachingActivity" android:exported="false" />
         <activity android:name=".MainActivity" android:exported="true">
             <intent-filter>
