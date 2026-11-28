@@ -281,6 +281,7 @@ public final class CoachingContractTest extends Instrumentation {
         ui(() -> button(main, exercise).performClick());
         openCoaching();
         ui(() -> require(checked(R.string.goal_maintain)));
+        stage = "selected exercise return";
         backToMain();
         ui(() -> has(main, R.string.history));
         require(exercise.equals(selection.getString("exercise", null)) && setCount() == sets);
@@ -372,9 +373,10 @@ public final class CoachingContractTest extends Instrumentation {
     }
 
     private void backToMain() throws Exception {
+        ActivityMonitor resumed = addMonitor(MainActivity.class.getName(), null, false);
         ui(page::onBackPressed);
+        require(waitForMonitorWithTimeout(resumed, 7000) == main);
         waitForIdleSync();
-        require(!main.isFinishing());
     }
 
     private void pick(boolean record, LocalDate day) throws Exception {
