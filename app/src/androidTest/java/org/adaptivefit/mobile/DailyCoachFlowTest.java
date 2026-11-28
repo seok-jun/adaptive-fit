@@ -17,6 +17,8 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.Collections;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -64,9 +66,11 @@ public final class DailyCoachFlowTest extends Instrumentation {
             } else {
                 check(phase.isEmpty(), "unknown phase");
                 seed();
+                checkMissingInputs();
                 checkRequestsAndEdits();
                 checkCardio();
                 checkDisconnected();
+                checkFailedAndStale();
             }
             result.putString("stream", "PASS daily coach " + (phase.isEmpty() ? "UI, provider requests, actuals and daily plans" : phase));
             status = Activity.RESULT_OK;
@@ -148,6 +152,68 @@ public final class DailyCoachFlowTest extends Instrumentation {
                 : new DailyCoach.Target(new BigDecimal("48"), 8, 3, 0);
         return new DailyCoach.Response(request.id(), "합성 코칭 " + request.goal(),
                 Collections.singletonList(ref), proposal);
+    }
+
+    private void checkMissingInputs() throws Exception {
+        stage = "unconfigured goal and exercise with no history";
+        DailyCoach.provider = this::respond;
+        page = launch(DailyCoachActivity.class);
+        click("daily_suggest_0");
+        check(ui(() -> tagged("daily_pick_goal").isShown()), "missing goal action");
+        check(received.get() == null, "issued request without goal");
+        coaching.saveGoal(CoachingStore.GROWTH);
+        ui(() -> {
+            ((Spinner) tagged("daily_exercise")).setSelection(0);
+            return null;
+        });
+        waitForIdleSync();
+        click("daily_suggest_0");
+        check(received.get() == null, "issued request without actuals");
+        closeCoach();
+    }
+
+    private void checkFailedAndStale() throws Exception {
+        stage = "provider error and late result after question change";
+        String snapshot = actuals();
+        DailyCoach.provider = request -> { throw new IllegalStateException("synthetic failure"); };
+        click("daily_suggest_0");
+        awaitScreen(getTargetContext().getString(R.string.daily_coach_failed));
+        check(ui(() -> page.getWindow().getDecorView().findViewWithTag("daily_apply") == null), "failed answer accepted");
+
+        CountDownLatch entered = new CountDownLatch(1), release = new CountDownLatch(1), ended = new CountDownLatch(1);
+        DailyCoach.provider = request -> {
+            entered.countDown();
+            try {
+                // Model a transport that delivers its old result after cancellation.
+                boolean done = false;
+                while (!done) {
+                    try { done = release.await(5, TimeUnit.SECONDS); }
+                    catch (InterruptedException ignored) { continue; }
+                    if (!done) throw new IllegalStateException("fixture timed out");
+                }
+                return new DailyCoach.Response(request.id(), "오래된 합성 답변",
+                        Collections.singletonList(request.evidence().get(0).ref()), null);
+            } finally {
+                ended.countDown();
+            }
+        };
+        try {
+            click("daily_suggest_0");
+            check(entered.await(3, TimeUnit.SECONDS), "delayed provider not called");
+            DailyCoach.provider = this::respond;
+            edit("daily_question", QUESTION);
+            click("daily_ask");
+            awaitFeedback(CoachingStore.MAINTAIN);
+            release.countDown();
+            check(ended.await(3, TimeUnit.SECONDS), "delayed provider did not return");
+            SystemClock.sleep(100);
+            waitForIdleSync();
+            check(ui(() -> findText(page.getWindow().getDecorView(), "오래된 합성 답변") == null), "stale reply rendered");
+            check(snapshot.equals(actuals()) && goals.target(EXERCISE, today).reps() == 7,
+                    "failed request changed stored data");
+        } finally {
+            release.countDown();
+        }
     }
 
     private void checkRequestsAndEdits() throws Exception {
@@ -266,12 +332,16 @@ public final class DailyCoachFlowTest extends Instrumentation {
     }
 
     private void awaitFeedback(String goal) throws Exception {
+        awaitScreen("합성 코칭 " + goal);
+    }
+
+    private void awaitScreen(String text) throws Exception {
         long deadline = SystemClock.elapsedRealtime() + 5000;
         while (SystemClock.elapsedRealtime() < deadline) {
-            if (ui(() -> findText(page.getWindow().getDecorView(), "합성 코칭 " + goal) != null)) return;
+            if (ui(() -> findText(page.getWindow().getDecorView(), text) != null)) return;
             SystemClock.sleep(40);
         }
-        throw new AssertionError("missing feedback for " + goal);
+        throw new AssertionError("missing text " + text);
     }
 
     private Activity launch(Class<? extends Activity> type) {
