@@ -45,4 +45,18 @@ public final class ExerciseNameMatcherTest {
         assertNull(ExerciseNameMatcher.match(Collections.singletonList(Collections.singletonList("SQUAT")),
                 new String[]{"벤치 프레스"}));
     }
+
+    @Test public void acceptsOnlyBordersOutsideTheWholeLabel() {
+        assertEquals("랫 풀다운", match("랫 풀다운 |"));
+        assertEquals("벤치 프레스", match("| BENCH PRESS |"));
+        assertEquals("랫 풀다운", match("|| LAT", "PULL DOWN ||"));
+        assertNull(match("랫 풀"));
+        assertNull(match("LAT|PULLDOWN"));
+        assertNull(match("LAT |", "PULLDOWN"));
+        assertNull(match("LAT", "| PULLDOWN"));
+        assertNull(match("BENCH PRESS 2"));
+        assertNull(match("NEW BENCH PRESS"));
+        assertNull(match("SQUAT!"));
+        assertNull(match("| LEG PRESS", "BENCH PRESS |"));
+    }
 }

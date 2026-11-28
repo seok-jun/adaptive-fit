@@ -40,12 +40,19 @@ final class ExerciseNameMatcher {
             for (int start = 0; start < lines.length; start++) {
                 StringBuilder label = new StringBuilder();
                 for (int end = start; end < lines.length; end++) {
-                    if (lines[end].isEmpty() || label.length() + lines[end].length() > MAX_ALIAS_LENGTH) break;
+                    if (lines[end].isEmpty()) break;
                     label.append(lines[end]);
-                    String key = ALIASES.get(label.toString());
-                    if (key == null) continue;
-                    if (candidate != null && !candidate.equals(key)) return null;
-                    candidate = key;
+                    int left = 0, right = label.length();
+                    while (left < right && label.charAt(left) == '|') left++;
+                    while (right > left && label.charAt(right - 1) == '|') right--;
+                    if (left == right || right - left > MAX_ALIAS_LENGTH) break;
+                    String key = ALIASES.get(label.substring(left, right));
+                    if (key != null) {
+                        if (candidate != null && !candidate.equals(key)) return null;
+                        candidate = key;
+                    }
+                    // Joining another line here would move this border inside the name.
+                    if (right < label.length()) break;
                 }
             }
         }
