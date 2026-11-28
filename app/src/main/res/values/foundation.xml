@@ -17,13 +17,16 @@
     <string name="editing_weight">무게 변경 닫기</string>
     <string name="weight">이번 세트 무게 (kg)</string>
     <string name="invalid_weight">0 이상의 무게를 입력하세요.</string>
+    <string name="saving">세트를 기록하는 중…</string>
+    <string name="save_failed">세트를 기록하지 못했습니다. 같은 횟수를 눌러 다시 시도하세요.</string>
+    <color name="control_track">#E2E9E3</color>
     <string name="partial">마지막 구간 반복</string>
     <string name="partial_amount">구간 반복 횟수</string>
     <string name="rep">%1$d회</string>
     <string name="recommended">%1$d회 · 추천</string>
     <string name="actual">실제 횟수 선택</string>
     <string name="saved">✓ 방금 기록한 세트 · %1$d세트</string>
-    <string name="result">%1$s kg × %2$d회</string>
+    <string name="result">%1$s\u00a0kg × %2$d\u2060회</string>
     <string name="mixed">전 구간 %1$d회 · 구간 반복 %2$d회</string>
     <string name="summary">운동 종료 요약 예시</string>
     <string name="empty_summary">기록한 세트가 생기면 여기에 표시됩니다.</string>
@@ -46,6 +49,6 @@
         <item name="android:textSize">32sp</item><item name="android:fontFeatureSettings">tnum</item>
     </style>
     <string name="partial_value">구간 반복 횟수, %1$d회</string>
-    <string name="feedback_mixed">최근 세트에서는 구간 반복을 따로 세어 전 구간 %1$d회를 수행했습니다.</string>
-    <string name="feedback_full">최근 세트의 %1$d회는 모두 전 구간 반복이었습니다.</string>
+    <string name="feedback_mixed">최근 세트에서는 구간 반복을 따로 세어 전 구간 %1$d\u2060회를 수행했습니다.</string>
+    <string name="feedback_full">최근 세트의 %1$d\u2060회는 모두 전 구간 반복이었습니다.</string>
 </resources>

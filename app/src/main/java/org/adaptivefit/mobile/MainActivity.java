@@ -39,15 +39,17 @@ public final class MainActivity extends Activity {
         latest.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
         SessionSummaryView summary = new SessionSummaryView(this);
         SetInputView input = new SetInputView(this, new BigDecimal("100"), 8, new int[]{7, 8, 10, 15},
-                (kg, reps, partial) -> {
+                (kg, reps, partial, result) -> {
                     latest.removeAllViews();
                     latest.addView(new SetRecordView(this, ++setCount, kg, reps, partial));
                     summary.show(setCount, getString(partial > 0 ? R.string.feedback_mixed
                             : R.string.feedback_full, reps - partial));
+                    result.complete(true);
                 });
-        Foundation.add(page, input, R.dimen.space_medium);
         Foundation.add(page, latest, R.dimen.space_small);
         Foundation.add(page, summary, R.dimen.space_small);
+        page.addView(new android.widget.Space(this), new LinearLayout.LayoutParams(1, 0, 1));
+        Foundation.add(page, input, R.dimen.space_medium);
         setContentView(scroll);
     }
 }
