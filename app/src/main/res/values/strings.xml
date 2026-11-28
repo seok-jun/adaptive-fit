@@ -15,4 +15,23 @@
     <string name="history">세트 기록 보기</string>
     <string name="no_sets">아직 기록한 세트가 없습니다.</string>
     <string name="other_count">다른 실제 횟수 선택</string>
+    <string name="coaching_title">코칭 목표와 체중</string>
+    <string name="coaching_goal">코칭 목표</string>
+    <string name="goal_loss">감량</string>
+    <string name="goal_growth">근비대</string>
+    <string name="goal_maintain">유지</string>
+    <string name="daily_weight">날짜별 체중</string>
+    <string name="body_kg">체중 (kg)</string>
+    <string name="save_body_weight">체중 저장</string>
+    <string name="invalid_body_kg">0보다 큰 체중을 숫자로 입력하세요.</string>
+    <string name="coaching_read_failed">기록을 읽지 못했습니다.</string>
+    <string name="coaching_save_failed">저장하지 못했습니다. 다시 시도하세요.</string>
+    <string name="weight_saved">저장했습니다</string>
+    <string name="compare_dates">두 날짜 비교</string>
+    <string name="record_date">기록일 %1$s</string>
+    <string name="reference_date">비교 기준일 %1$s</string>
+    <string name="value_kg">%1$s kg</string>
+    <string name="unmeasured">미측정</string>
+    <string name="no_comparison">비교할 수 없음</string>
+    <string name="weight_comparison">기준일 %1$s · %2$s\n기록일 %3$s · %4$s\n변화 (기록일 − 기준일) %5$s</string>
 </resources>
