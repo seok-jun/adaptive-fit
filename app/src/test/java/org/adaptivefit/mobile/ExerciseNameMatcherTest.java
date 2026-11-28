@@ -2,6 +2,7 @@ package org.adaptivefit.mobile;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertSame;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -12,7 +13,7 @@ public final class ExerciseNameMatcherTest {
     private static final String[] CATALOG = {"레그 프레스", "벤치 프레스", "랫 풀다운", "스쿼트"};
 
     private static String match(String... lines) {
-        return ExerciseNameMatcher.match(Collections.singletonList(Arrays.asList(lines)), CATALOG);
+        return ExerciseNameMatcher.match(Collections.singletonList(Arrays.asList(lines)), CATALOG).exercise;
     }
 
     @Test public void bothLanguagesReturnTheExistingKey() {
@@ -30,7 +31,7 @@ public final class ExerciseNameMatcherTest {
         assertEquals("랫 풀다운", match("LAT", "PULL", "DOWN"));
         List<List<String>> separate = Arrays.asList(Collections.singletonList("LEG"),
                 Collections.singletonList("PRESS"));
-        assertNull(ExerciseNameMatcher.match(separate, CATALOG));
+        assertSame(ExerciseNameMatcher.Result.NO_NAME, ExerciseNameMatcher.match(separate, CATALOG));
     }
 
     @Test public void ambiguousUnknownAndPartialLabelsProduceNoCandidate() {
@@ -40,9 +41,9 @@ public final class ExerciseNameMatcherTest {
         assertNull(match("SQUATTING"));
         assertNull(match("NEW LEG PRESS MACHINE"));
         assertNull(match("레그 프레스", "BENCH PRESS"));
-        assertNull(ExerciseNameMatcher.match(Arrays.asList(Collections.singletonList("SQUAT"),
+        assertSame(ExerciseNameMatcher.Result.CONFLICT, ExerciseNameMatcher.match(Arrays.asList(Collections.singletonList("SQUAT"),
                 Collections.singletonList("LEG PRESS")), CATALOG));
-        assertNull(ExerciseNameMatcher.match(Collections.singletonList(Collections.singletonList("SQUAT")),
+        assertSame(ExerciseNameMatcher.Result.NO_NAME, ExerciseNameMatcher.match(Collections.singletonList(Collections.singletonList("SQUAT")),
                 new String[]{"벤치 프레스"}));
     }
 

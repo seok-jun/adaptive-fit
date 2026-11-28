@@ -4,12 +4,14 @@ import android.Manifest;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.content.res.AssetManager;
 import android.graphics.ImageFormat;
 import android.hardware.Camera;
 import android.hardware.display.DisplayManager;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.view.Gravity;
 import android.view.Surface;
 import android.view.SurfaceHolder;
@@ -33,17 +35,33 @@ import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import ai.onnxruntime.OrtException;
+import org.json.JSONException;
 
 @SuppressWarnings("deprecation")
 public final class CameraSelectionActivity extends Activity
         implements SurfaceHolder.Callback, DisplayManager.DisplayListener {
     static final String EXTRA_EXERCISE = "org.adaptivefit.mobile.CONFIRMED_EXERCISE";
     private static final int REQUEST_PERMISSION = 1;
-    private enum Stage { PERMISSION, PREVIEW, FRAME, READING, CANDIDATE, FINISHED }
+    private enum Stage { PERMISSION, PREVIEW, FRAME, READING, SHAPE, CANDIDATE, FINISHED }
+    private static final ThreadPoolExecutor SHAPE_WORKER = new ThreadPoolExecutor(0, 1,
+            30, TimeUnit.SECONDS, new SynchronousQueue<>());
+
+    private static final class Attempt {
+        private final long deadline = SystemClock.elapsedRealtime() + 30_000;
+        private volatile boolean ended;
+
+        boolean isCurrent() { return !ended && SystemClock.elapsedRealtime() < deadline; }
+    }
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Runnable timeout = () -> cancel(R.string.camera_unrecognized);
     private Stage stage = Stage.PERMISSION;
+    private Attempt attempt;
     private boolean resumed;
     private Camera camera;
     private int sensorOrientation;
@@ -127,6 +145,7 @@ public final class CameraSelectionActivity extends Activity
 
     @Override protected void onDestroy() {
         stage = Stage.FINISHED;
+        if (attempt != null) attempt.ended = true;
         handler.removeCallbacks(timeout);
         releaseCamera();
         super.onDestroy();
@@ -221,6 +240,7 @@ public final class CameraSelectionActivity extends Activity
     private void captureFrame() {
         if (stage != Stage.PREVIEW || camera == null) return;
         stage = Stage.FRAME;
+        attempt = new Attempt();
         capture.setEnabled(false);
         message.setText(R.string.camera_reading);
         handler.postDelayed(timeout, 30_000);
@@ -240,7 +260,7 @@ public final class CameraSelectionActivity extends Activity
         }
     }
 
-    // The task owns its input until completion, even if the originating Activity has gone away.
+    // OCR owns the frame until completion or an explicit transfer to the shape worker.
     private static void recognize(WeakReference<CameraSelectionActivity> owner, byte[] pixels,
             int width, int height, int rotation) {
         TextRecognizer recognizer = null;
@@ -249,12 +269,24 @@ public final class CameraSelectionActivity extends Activity
             recognizer = TextRecognition.getClient(new KoreanTextRecognizerOptions.Builder().build());
             TextRecognizer active = recognizer;
             active.process(image).addOnCompleteListener(task -> {
-                active.close();
-                Arrays.fill(pixels, (byte) 0);
-                CameraSelectionActivity screen = owner.get();
-                if (screen == null || screen.stage != Stage.READING) return;
-                if (!task.isSuccessful()) screen.cancel(R.string.camera_unrecognized);
-                else screen.showResult(task.getResult());
+                boolean transferred = false;
+                try {
+                    active.close();
+                    CameraSelectionActivity screen = owner.get();
+                    if (screen == null || screen.stage != Stage.READING) return;
+                    if (!screen.attempt.isCurrent() || !task.isSuccessful()) {
+                        screen.cancel(R.string.camera_unrecognized);
+                        return;
+                    }
+                    ExerciseNameMatcher.Result result = screen.readName(task.getResult());
+                    if (result == ExerciseNameMatcher.Result.NO_NAME) {
+                        transferred = screen.startShape(owner, pixels, width, height, rotation);
+                    } else {
+                        screen.showCandidate(result.exercise);
+                    }
+                } finally {
+                    if (!transferred) Arrays.fill(pixels, (byte) 0);
+                }
             });
         } catch (RuntimeException failure) {
             if (recognizer != null) recognizer.close();
@@ -264,19 +296,56 @@ public final class CameraSelectionActivity extends Activity
         }
     }
 
-    private void showResult(Text text) {
+    private ExerciseNameMatcher.Result readName(Text text) {
         List<List<String>> blocks = new ArrayList<>();
         for (Text.TextBlock block : text.getTextBlocks()) {
             List<String> lines = new ArrayList<>();
             for (Text.Line line : block.getLines()) lines.add(line.getText());
             blocks.add(lines);
         }
-        String candidate = ExerciseNameMatcher.match(blocks, getResources().getStringArray(R.array.exercises));
-        if (candidate == null) {
+        return ExerciseNameMatcher.match(blocks, getResources().getStringArray(R.array.exercises));
+    }
+
+    private boolean startShape(WeakReference<CameraSelectionActivity> owner, byte[] pixels,
+            int width, int height, int rotation) {
+        stage = Stage.SHAPE;
+        AssetManager assets = getApplicationContext().getAssets();
+        String[] catalog = getResources().getStringArray(R.array.exercises);
+        Attempt request = attempt;
+        Handler ui = handler;
+        try {
+            SHAPE_WORKER.execute(() -> {
+                String result = null;
+                try {
+                    result = EquipmentShapeClassifier.classify(assets, catalog, pixels, width,
+                            height, rotation, request::isCurrent);
+                } catch (IOException | JSONException | OrtException | RuntimeException | LinkageError unavailable) {
+                    // The same manual selection remains available when local inference cannot run.
+                } finally {
+                    Arrays.fill(pixels, (byte) 0);
+                }
+                String candidate = result;
+                ui.post(() -> {
+                    CameraSelectionActivity screen = owner.get();
+                    if (screen != null && screen.stage == Stage.SHAPE && screen.attempt == request) {
+                        screen.showCandidate(candidate);
+                    }
+                });
+            });
+            return true;
+        } catch (RejectedExecutionException busy) {
+            cancel(R.string.camera_unrecognized);
+            return false;
+        }
+    }
+
+    private void showCandidate(String candidate) {
+        if (candidate == null || !attempt.isCurrent()) {
             cancel(R.string.camera_unrecognized);
             return;
         }
         handler.removeCallbacks(timeout);
+        attempt.ended = true;
         stage = Stage.CANDIDATE;
         page.removeAllViews();
         TextView heading = Foundation.text(this, R.style.FitTitle, true);
@@ -309,6 +378,7 @@ public final class CameraSelectionActivity extends Activity
     private void cancel(int explanation) {
         if (stage == Stage.FINISHED) return;
         stage = Stage.FINISHED;
+        if (attempt != null) attempt.ended = true;
         handler.removeCallbacks(timeout);
         releaseCamera();
         setResult(RESULT_CANCELED);

@@ -23,6 +23,16 @@ final class ExerciseNameMatcher {
 
     private ExerciseNameMatcher() {}
 
+    static final class Result {
+        static final Result NO_NAME = new Result(null);
+        static final Result CONFLICT = new Result(null);
+        final String exercise;
+
+        private Result(String exercise) {
+            this.exercise = exercise;
+        }
+    }
+
     private static void add(String key, String english) {
         ALIASES.put(normalize(key), key);
         ALIASES.put(normalize(english), key);
@@ -33,7 +43,7 @@ final class ExerciseNameMatcher {
         return SEPARATORS.matcher(normalized).replaceAll("");
     }
 
-    static String match(List<List<String>> blocks, String[] catalog) {
+    static Result match(List<List<String>> blocks, String[] catalog) {
         String candidate = null;
         for (List<String> block : blocks) {
             String[] lines = block.stream().map(ExerciseNameMatcher::normalize).toArray(String[]::new);
@@ -48,7 +58,7 @@ final class ExerciseNameMatcher {
                     if (left == right || right - left > MAX_ALIAS_LENGTH) break;
                     String key = ALIASES.get(label.substring(left, right));
                     if (key != null) {
-                        if (candidate != null && !candidate.equals(key)) return null;
+                        if (candidate != null && !candidate.equals(key)) return Result.CONFLICT;
                         candidate = key;
                     }
                     // Joining another line here would move this border inside the name.
@@ -56,6 +66,7 @@ final class ExerciseNameMatcher {
                 }
             }
         }
-        return candidate != null && Arrays.asList(catalog).contains(candidate) ? candidate : null;
+        return candidate != null && Arrays.asList(catalog).contains(candidate)
+                ? new Result(candidate) : Result.NO_NAME;
     }
 }
