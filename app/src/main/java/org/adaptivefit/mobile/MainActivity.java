@@ -18,6 +18,7 @@ public final class MainActivity extends Activity {
     private WorkoutStore store;
     private LinearLayout page;
     private String exercise;
+    private LinearLayout feedbackActions;
     private boolean awaitingCameraSelection;
 
     @Override protected void onCreate(Bundle state) {
@@ -42,6 +43,7 @@ public final class MainActivity extends Activity {
             return insets;
         });
         scroll.setSystemUiVisibility(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
+        feedbackActions = null;
         page = new LinearLayout(this);
         page.setOrientation(LinearLayout.VERTICAL);
         page.setFocusableInTouchMode(true);
@@ -77,6 +79,7 @@ public final class MainActivity extends Activity {
             startActivityForResult(new Intent(this, CameraSelectionActivity.class), REQUEST_CAMERA_SELECTION);
         });
         coachingButton();
+        addFeedbackActions();
     }
 
     private void selectExercise(String name) {
@@ -146,6 +149,7 @@ public final class MainActivity extends Activity {
         try (Cursor plan = store.plan(exercise)) {
             if (!plan.moveToFirst()) {
                 setup();
+                addFeedbackActions();
                 return;
             }
             int goal = plan.getInt(1);
@@ -166,9 +170,77 @@ public final class MainActivity extends Activity {
                         }
                         result.complete(true);
                         showLatest(latest);
+                        refreshFeedbackActions();
                     });
             Foundation.add(page, input, R.dimen.space_medium);
+        } catch (RuntimeException failure) {
+            button(getString(R.string.feedback_retry), this::openExercise);
+            Toast.makeText(this, R.string.coaching_read_failed, Toast.LENGTH_LONG).show();
         }
+        addFeedbackActions();
+    }
+
+    @Override protected void onResume() {
+        super.onResume();
+        refreshFeedbackActions();
+    }
+
+    private void addFeedbackActions() {
+        feedbackActions = new LinearLayout(this);
+        feedbackActions.setOrientation(LinearLayout.VERTICAL);
+        Foundation.add(page, feedbackActions, R.dimen.space_medium);
+        refreshFeedbackActions();
+    }
+
+    private void action(String tag, int title, Runnable handler) {
+        Button button = new Button(this);
+        button.setTag(tag);
+        button.setText(title);
+        button.setOnClickListener(v -> handler.run());
+        Foundation.add(feedbackActions, button, R.dimen.space_small);
+    }
+
+    private Intent feedback(String mode) {
+        return new Intent(this, FeedbackActivity.class).putExtra("mode", mode);
+    }
+
+    private void refreshFeedbackActions() {
+        if (feedbackActions == null) return;
+        feedbackActions.removeAllViews();
+        action("feedback_period", R.string.feedback_period, () -> startActivity(feedback("period")));
+        action("feedback_new_cardio", R.string.feedback_new_cardio, () -> {
+            try {
+                String key = store.newCardio();
+                startActivity(feedback("cardio").putExtra("key", key));
+            } catch (RuntimeException failure) {
+                Toast.makeText(this, R.string.coaching_save_failed, Toast.LENGTH_LONG).show();
+            }
+        });
+        try {
+            long open = store.openWeight();
+            if (open != 0) action("feedback_finish_weight", R.string.feedback_finish_weight,
+                    () -> startActivity(feedback("weight").putExtra("id", open)));
+            try (Cursor draft = store.cardioDraft()) {
+                if (draft.moveToFirst() && draft.isNull(2)) {
+                    String key = draft.getString(0);
+                    action("feedback_resume_cardio", R.string.feedback_resume_cardio,
+                            () -> startActivity(feedback("cardio").putExtra("key", key)));
+                }
+            }
+            latestReceipt("weight", R.string.feedback_latest_weight);
+            latestReceipt("cardio", R.string.feedback_latest_cardio);
+        } catch (RuntimeException failure) {
+            TextView status = Foundation.text(this, R.style.FitBody, false);
+            status.setText(R.string.coaching_read_failed);
+            feedbackActions.addView(status);
+            action("feedback_retry", R.string.feedback_retry, this::refreshFeedbackActions);
+        }
+    }
+
+    private void latestReceipt(String kind, int title) {
+        long id = store.latestReceipt(kind);
+        if (id != 0) action("feedback_latest_" + kind, title,
+                () -> startActivity(feedback("receipt").putExtra("id", id)));
     }
 
     private static int[] choices(int goal) {
