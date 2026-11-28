@@ -117,8 +117,7 @@ public final class SetInputView extends LinearLayout {
         partialCount = new Spinner(context);
         partialCount.setContentDescription(context.getString(R.string.partial_amount));
         partialCount.setMinimumHeight(touch);
-        int maximum = 0;
-        for (int count : counts) maximum = Math.max(maximum, count);
+        final int maximum = 100;
         List<String> amounts = new ArrayList<>();
         for (int i = 1; i <= maximum; i++) amounts.add(context.getString(R.string.rep, i));
         ArrayAdapter<String> adapter = new ArrayAdapter<>(context, android.R.layout.simple_spinner_item, amounts) {
@@ -150,6 +149,59 @@ public final class SetInputView extends LinearLayout {
         TextView title = Foundation.text(context, R.style.FitHeading, true);
         title.setText(R.string.actual);
         Foundation.add(this, title, R.dimen.space_small);
+        Button other = new Button(context);
+        java.util.function.IntConsumer submit = count -> {
+            if (pending != null || android.os.SystemClock.uptimeMillis() < nextInputAt) return;
+            String value = weight.getText().toString();
+            if (!validWeight(value)) {
+                error.setVisibility(VISIBLE);
+                weight.requestFocus();
+                return;
+            }
+            error.setVisibility(GONE);
+            BigDecimal kilograms = new BigDecimal(value);
+            int segment = selectedPartialCount();
+            if (segment > count) return;
+            final long duplicateWindowEnd = android.os.SystemClock.uptimeMillis()
+                    + android.view.ViewConfiguration.getDoubleTapTimeout();
+            pending = new SaveResult() {
+                @Override public void complete(boolean saved) {
+                    post(() -> {
+                        if (pending != this) return;
+                        pending = null;
+                        other.setEnabled(true);
+                        edit.setEnabled(true);
+                        weight.setEnabled(true);
+                        partial.setEnabled(true);
+                        partialCount.setEnabled(true);
+                        if (saved) {
+                            nextInputAt = duplicateWindowEnd;
+                            long remaining = nextInputAt - android.os.SystemClock.uptimeMillis();
+                            if (remaining > 0) postDelayed(SetInputView.this::updateEnabledCounts, remaining);
+                            edit.setText(context.getString(R.string.edit_weight, kilograms.toPlainString()));
+                            weight.setVisibility(GONE);
+                            label.setVisibility(GONE);
+                            partial.setChecked(false);
+                            outcome.setVisibility(GONE);
+                        } else {
+                            outcome.setTextColor(context.getColor(R.color.error));
+                            outcome.setText(R.string.save_failed);
+                        }
+                        updateEnabledCounts();
+                    });
+                }
+            };
+            outcome.setTextColor(context.getColor(R.color.muted));
+            outcome.setText(R.string.saving);
+            outcome.setVisibility(VISIBLE);
+            other.setEnabled(false);
+            edit.setEnabled(false);
+            weight.setEnabled(false);
+            partial.setEnabled(false);
+            partialCount.setEnabled(false);
+            updateEnabledCounts();
+            listener.onSet(kilograms, count, segment, pending);
+        };
         LinearLayout row = null;
         int columns = getResources().getConfiguration().fontScale > 1.3f
                 || getResources().getConfiguration().screenWidthDp < 350 ? 1 : 2;
@@ -163,62 +215,23 @@ public final class SetInputView extends LinearLayout {
             choice.setTag(count);
             choice.setText(context.getString(count == suggestedReps ? R.string.recommended : R.string.rep, count));
             Foundation.repAction(choice, count == suggestedReps);
-            choice.setOnClickListener(button -> {
-                if (pending != null || android.os.SystemClock.uptimeMillis() < nextInputAt) return;
-                String value = weight.getText().toString();
-                if (!validWeight(value)) {
-                    error.setVisibility(VISIBLE);
-                    weight.requestFocus();
-                    return;
-                }
-                error.setVisibility(GONE);
-                BigDecimal kilograms = new BigDecimal(value);
-                int segment = selectedPartialCount();
-                if (segment > count) return;
-                final long duplicateWindowEnd = android.os.SystemClock.uptimeMillis()
-                        + android.view.ViewConfiguration.getDoubleTapTimeout();
-                pending = new SaveResult() {
-                    @Override public void complete(boolean saved) {
-                        post(() -> {
-                            if (pending != this) return;
-                            pending = null;
-                            edit.setEnabled(true);
-                            weight.setEnabled(true);
-                            partial.setEnabled(true);
-                            partialCount.setEnabled(true);
-                            if (saved) {
-                                nextInputAt = duplicateWindowEnd;
-                                long remaining = nextInputAt - android.os.SystemClock.uptimeMillis();
-                                if (remaining > 0) postDelayed(SetInputView.this::updateEnabledCounts, remaining);
-                                edit.setText(context.getString(R.string.edit_weight, kilograms.toPlainString()));
-                                weight.setVisibility(GONE);
-                                label.setVisibility(GONE);
-                                partial.setChecked(false);
-                                outcome.setVisibility(GONE);
-                            } else {
-                                outcome.setTextColor(context.getColor(R.color.error));
-                                outcome.setText(R.string.save_failed);
-                            }
-                            updateEnabledCounts();
-                        });
-                    }
-                };
-                outcome.setTextColor(context.getColor(R.color.muted));
-                outcome.setText(R.string.saving);
-                outcome.setVisibility(VISIBLE);
-                edit.setEnabled(false);
-                weight.setEnabled(false);
-                partial.setEnabled(false);
-                partialCount.setEnabled(false);
-                updateEnabledCounts();
-                listener.onSet(kilograms, count, segment, pending);
-            });
+            choice.setOnClickListener(button -> submit.accept(count));
             choices.add(choice);
             LinearLayout.LayoutParams cell = new LinearLayout.LayoutParams(0, -2, 1);
             cell.topMargin = Foundation.size(context, R.dimen.space_small);
             if (i % columns != 0) cell.setMarginStart(Foundation.size(context, R.dimen.space_small));
             row.addView(choice, cell);
         }
+        other.setText(R.string.other_count);
+        other.setOnClickListener(v -> {
+            int first = Math.max(1, selectedPartialCount());
+            String[] labels = new String[maximum - first + 1];
+            for (int i = 0; i < labels.length; i++) labels[i] = context.getString(R.string.rep, first + i);
+            new android.app.AlertDialog.Builder(context).setTitle(R.string.actual)
+                    .setItems(labels, (dialog, index) -> submit.accept(first + index)).show();
+        });
+        addView(other);
+
     }
 
     private static ColorStateList controlTint(Context context, int state) {
