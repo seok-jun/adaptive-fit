@@ -1,0 +1,54 @@
+<resources>
+    <color name="canvas">#F3F5EF</color>
+    <color name="surface">#FFFFFF</color>
+    <color name="ink">#152B22</color>
+    <color name="muted">#465C50</color>
+    <color name="active">#185A41</color>
+    <color name="inactive">#525D56</color>
+    <color name="error">#9B282E</color>
+    <dimen name="touch">48dp</dimen>
+    <dimen name="space_small">8dp</dimen>
+    <dimen name="space_medium">16dp</dimen>
+    <dimen name="page_margin">20dp</dimen>
+    <string name="preview_title">세트 기록 예시</string>
+    <string name="exercise">레그 프레스</string>
+    <string name="plan">다음 세트 · 예정</string>
+    <string name="edit_weight">무게 변경 · %1$s kg</string>
+    <string name="editing_weight">무게 변경 닫기</string>
+    <string name="weight">이번 세트 무게 (kg)</string>
+    <string name="invalid_weight">0 이상의 무게를 입력하세요.</string>
+    <string name="saving">세트를 기록하는 중…</string>
+    <string name="save_failed">세트를 기록하지 못했습니다. 같은 횟수를 눌러 다시 시도하세요.</string>
+    <color name="control_track">#E2E9E3</color>
+    <string name="partial">마지막 구간 반복</string>
+    <string name="partial_amount">구간 반복 횟수</string>
+    <string name="rep">%1$d회</string>
+    <string name="recommended">%1$d회 · 추천</string>
+    <string name="actual">실제 횟수 선택</string>
+    <string name="saved">✓ 방금 기록한 세트 · %1$d세트</string>
+    <string name="result">%1$s\u00a0kg × %2$d\u2060회</string>
+    <string name="mixed">전 구간 %1$d회 · 구간 반복 %2$d회</string>
+    <string name="summary">운동 종료 요약 예시</string>
+    <string name="empty_summary">기록한 세트가 생기면 여기에 표시됩니다.</string>
+    <string name="summary_count">기록한 세트 %1$d개</string>
+    <color name="action_secondary">#E7EEE8</color>
+    <color name="disabled_surface">#E4E6E3</color>
+    <dimen name="radius_control">12dp</dimen>
+    <dimen name="rep_touch">56dp</dimen>
+    <style name="FitBody" parent="@android:style/TextAppearance.Material.Body1">
+        <item name="android:textSize">16sp</item><item name="android:textColor">@color/ink</item>
+    </style>
+    <style name="FitLabel" parent="FitBody">
+        <item name="android:textSize">14sp</item><item name="android:textColor">@color/muted</item>
+    </style>
+    <style name="FitHeading" parent="FitBody">
+        <item name="android:textSize">20sp</item><item name="android:textStyle">bold</item>
+    </style>
+    <style name="FitTitle" parent="FitHeading"><item name="android:textSize">30sp</item></style>
+    <style name="FitMetric" parent="FitHeading">
+        <item name="android:textSize">32sp</item><item name="android:fontFeatureSettings">tnum</item>
+    </style>
+    <string name="partial_value">구간 반복 횟수, %1$d회</string>
+    <string name="feedback_mixed">최근 세트에서는 구간 반복을 따로 세어 전 구간 %1$d\u2060회를 수행했습니다.</string>
+    <string name="feedback_full">최근 세트의 %1$d\u2060회는 모두 전 구간 반복이었습니다.</string>
+</resources>
