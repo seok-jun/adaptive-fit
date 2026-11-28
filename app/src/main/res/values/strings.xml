@@ -1,3 +1,18 @@
 <resources>
     <string name="app_name">Adaptive Fit</string>
+    <string name="choose_exercise">운동 선택</string>
+    <string-array name="exercises">
+        <item>레그 프레스</item>
+        <item>벤치 프레스</item>
+        <item>랫 풀다운</item>
+        <item>스쿼트</item>
+    </string-array>
+    <string name="initial_weight">시작 무게 (kg)</string>
+    <string name="goal">목표 횟수</string>
+    <string name="goal_range">1~100 사이의 횟수를 입력하세요.</string>
+    <string name="start_sets">세트 입력 시작</string>
+    <string name="setup_failed">초기값을 저장하지 못했습니다. 다시 시도하세요.</string>
+    <string name="history">세트 기록 보기</string>
+    <string name="no_sets">아직 기록한 세트가 없습니다.</string>
+    <string name="other_count">다른 실제 횟수 선택</string>
 </resources>
