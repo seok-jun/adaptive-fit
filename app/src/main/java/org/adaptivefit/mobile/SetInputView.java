@@ -32,6 +32,15 @@ public final class SetInputView extends LinearLayout {
     private final EditText weight;
     private final Switch partial;
     private final Spinner partialCount;
+    private final LinearLayout countRows;
+    private final Button edit;
+    private final TextView metric;
+    private final java.util.function.IntConsumer submit;
+    private int displayedReps;
+    private BigDecimal nextWeight;
+    private int nextReps;
+    private int[] nextCounts;
+    private boolean dailyTarget, deferredUpdate, editedWeight, countDialogOpen;
     private final List<Button> choices = new ArrayList<>();
 
     public SetInputView(Context context, BigDecimal suggestedWeight, int suggestedReps,
@@ -42,7 +51,8 @@ public final class SetInputView extends LinearLayout {
         TextView plan = Foundation.text(context, R.style.FitLabel, true);
         plan.setText(R.string.plan);
         addView(plan);
-        TextView metric = Foundation.text(context, R.style.FitMetric, false);
+        displayedReps = suggestedReps;
+        metric = Foundation.text(context, R.style.FitMetric, false);
         metric.setText(Foundation.measurement(context.getString(R.string.result,
                 suggestedWeight.toPlainString(), suggestedReps)));
         addView(metric);
@@ -53,7 +63,7 @@ public final class SetInputView extends LinearLayout {
 
         LinearLayout options = new LinearLayout(context);
         options.setOrientation(VERTICAL);
-        Button edit = new Button(context, null, android.R.attr.borderlessButtonStyle);
+        edit = new Button(context, null, android.R.attr.borderlessButtonStyle);
         edit.setText(context.getString(R.string.edit_weight, suggestedWeight.toPlainString()));
         edit.setMinHeight(touch);
         edit.setAllCaps(false);
@@ -94,14 +104,16 @@ public final class SetInputView extends LinearLayout {
             weight.setVisibility(open ? VISIBLE : GONE);
             edit.setText(open ? context.getString(R.string.editing_weight)
                     : context.getString(R.string.edit_weight, weight.getText().toString()));
+            if (!open) applyDeferredIfIdle();
         });
         weight.addTextChangedListener(new android.text.TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
             @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
+                editedWeight = true;
                 error.setVisibility(GONE);
                 if (validWeight(s.toString())) {
                     metric.setText(Foundation.measurement(context.getString(R.string.result,
-                            s.toString(), suggestedReps)));
+                            s.toString(), displayedReps)));
                 }
             }
             @Override public void afterTextChanged(android.text.Editable s) {}
@@ -141,7 +153,10 @@ public final class SetInputView extends LinearLayout {
         });
         partial.setOnCheckedChangeListener((button, checked) -> {
             partialCount.setVisibility(checked ? VISIBLE : GONE);
-            if (!checked) partialCount.setSelection(0);
+            if (!checked) {
+                partialCount.setSelection(0);
+                applyDeferredIfIdle();
+            }
             updateEnabledCounts();
         });
 
@@ -150,7 +165,7 @@ public final class SetInputView extends LinearLayout {
         title.setText(R.string.actual);
         Foundation.add(this, title, R.dimen.space_small);
         Button other = new Button(context);
-        java.util.function.IntConsumer submit = count -> {
+        submit = count -> {
             if (pending != null || android.os.SystemClock.uptimeMillis() < nextInputAt) return;
             String value = weight.getText().toString();
             if (!validWeight(value)) {
@@ -182,10 +197,13 @@ public final class SetInputView extends LinearLayout {
                             weight.setVisibility(GONE);
                             label.setVisibility(GONE);
                             partial.setChecked(false);
+                            editedWeight = false;
+                            if (deferredUpdate || dailyTarget) useRecommendation();
                             outcome.setVisibility(GONE);
                         } else {
                             outcome.setTextColor(context.getColor(R.color.error));
                             outcome.setText(R.string.save_failed);
+                            applyDeferredIfIdle();
                         }
                         updateEnabledCounts();
                     });
@@ -202,6 +220,63 @@ public final class SetInputView extends LinearLayout {
             updateEnabledCounts();
             listener.onSet(kilograms, count, segment, pending);
         };
+        countRows = new LinearLayout(context);
+        countRows.setOrientation(VERTICAL);
+        addView(countRows);
+        showCounts(counts);
+        other.setText(R.string.other_count);
+        other.setOnClickListener(v -> {
+            int first = Math.max(1, selectedPartialCount());
+            String[] labels = new String[maximum - first + 1];
+            for (int i = 0; i < labels.length; i++) labels[i] = context.getString(R.string.rep, first + i);
+            countDialogOpen = true;
+            android.app.AlertDialog dialog = new android.app.AlertDialog.Builder(context).setTitle(R.string.actual)
+                    .setItems(labels, (ignored, index) -> submit.accept(first + index)).create();
+            dialog.setOnDismissListener(ignored -> {
+                countDialogOpen = false;
+                applyDeferredIfIdle();
+            });
+            dialog.show();
+        });
+        addView(other);
+
+    }
+
+    void recommendation(BigDecimal kg, int reps, int[] counts, boolean daily) {
+        nextWeight = kg;
+        nextReps = reps;
+        nextCounts = counts;
+        dailyTarget = daily;
+        deferredUpdate = hasDraft();
+        if (!deferredUpdate) useRecommendation();
+    }
+
+    private boolean hasDraft() {
+        return editedWeight || weight.getVisibility() == VISIBLE || partial.isChecked()
+                || pending != null || countDialogOpen;
+    }
+
+    private void applyDeferredIfIdle() {
+        if (deferredUpdate && !hasDraft()) useRecommendation();
+    }
+
+    private void useRecommendation() {
+        deferredUpdate = false;
+        if (displayedReps != nextReps) {
+            displayedReps = nextReps;
+            showCounts(nextCounts);
+        }
+        String kg = nextWeight.toPlainString();
+        weight.setText(kg);
+        editedWeight = false;
+        edit.setText(getContext().getString(R.string.edit_weight, kg));
+        updateEnabledCounts();
+    }
+
+    private void showCounts(int[] counts) {
+        Context context = getContext();
+        choices.clear();
+        countRows.removeAllViews();
         LinearLayout row = null;
         int columns = getResources().getConfiguration().fontScale > 1.3f
                 || getResources().getConfiguration().screenWidthDp < 350 ? 1 : 2;
@@ -209,12 +284,12 @@ public final class SetInputView extends LinearLayout {
             int count = counts[i];
             if (i % columns == 0) {
                 row = new LinearLayout(context);
-                addView(row);
+                countRows.addView(row);
             }
             Button choice = new Button(context);
             choice.setTag(count);
-            choice.setText(context.getString(count == suggestedReps ? R.string.recommended : R.string.rep, count));
-            Foundation.repAction(choice, count == suggestedReps);
+            choice.setText(context.getString(count == displayedReps ? R.string.recommended : R.string.rep, count));
+            Foundation.repAction(choice, count == displayedReps);
             choice.setOnClickListener(button -> submit.accept(count));
             choices.add(choice);
             LinearLayout.LayoutParams cell = new LinearLayout.LayoutParams(0, -2, 1);
@@ -222,16 +297,6 @@ public final class SetInputView extends LinearLayout {
             if (i % columns != 0) cell.setMarginStart(Foundation.size(context, R.dimen.space_small));
             row.addView(choice, cell);
         }
-        other.setText(R.string.other_count);
-        other.setOnClickListener(v -> {
-            int first = Math.max(1, selectedPartialCount());
-            String[] labels = new String[maximum - first + 1];
-            for (int i = 0; i < labels.length; i++) labels[i] = context.getString(R.string.rep, first + i);
-            new android.app.AlertDialog.Builder(context).setTitle(R.string.actual)
-                    .setItems(labels, (dialog, index) -> submit.accept(first + index)).show();
-        });
-        addView(other);
-
     }
 
     private static ColorStateList controlTint(Context context, int state) {

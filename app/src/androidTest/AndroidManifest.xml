@@ -10,4 +10,5 @@
         android:name="org.adaptivefit.mobile.SetInputContractTest"
         android:targetPackage="org.adaptivefit.mobile" />
     <instrumentation android:name="org.adaptivefit.mobile.FeedbackFlowTest" android:targetPackage="org.adaptivefit.mobile" />
+    <instrumentation android:name="org.adaptivefit.mobile.DailyCoachFlowTest" android:targetPackage="org.adaptivefit.mobile" />
 </manifest>

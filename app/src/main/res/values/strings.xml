@@ -80,4 +80,6 @@
     <string name="feedback_loading">기기에서 피드백 분석 중…</string>
     <string name="feedback_fallback">AI 피드백을 사용할 수 없음</string>
     <string name="feedback_actuals">실제 기록</string>
+    <string name="daily_lift_target">오늘 목표 · %1$d세트 × %2$s kg × %3$d회</string>
+    <string name="daily_minutes_target">오늘 유산소 목표 · 총 %1$d분</string>
 </resources>

@@ -2,7 +2,12 @@ package org.adaptivefit.mobile;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
+import java.time.LocalDate;
+import java.util.Objects;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteException;
 import android.os.Bundle;
@@ -21,19 +26,37 @@ public final class MainActivity extends Activity {
     private LinearLayout feedbackActions;
     private boolean awaitingCameraSelection;
 
+    private DefaultCoach defaultCoach;
+    private DefaultCoachView coachView;
+    private SetInputView setInput;
+    private BigDecimal fallbackWeight;
+    private int fallbackReps;
+    private boolean resumed;
+    private LocalDate displayedDay;
+    private DailyCoach.Target displayedTarget;
+    private final BroadcastReceiver dateChanged = new BroadcastReceiver() {
+        @Override public void onReceive(Context context, Intent intent) { bindDefault(); }
+    };
+
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
         store = new WorkoutStore(this);
+        defaultCoach = new DefaultCoach(this, store);
         exercise = getPreferences(MODE_PRIVATE).getString("exercise", null);
         if (exercise == null) choose(); else openExercise();
     }
 
     @Override protected void onDestroy() {
+        defaultCoach.unbind();
         store.close();
         super.onDestroy();
     }
 
     private void page(int title) {
+        defaultCoach.unbind();
+        coachView = null;
+        setInput = null;
+        displayedTarget = null;
         ScrollView scroll = new ScrollView(this);
         scroll.setBackgroundColor(getColor(R.color.canvas));
         scroll.setFillViewport(true);
@@ -146,13 +169,18 @@ public final class MainActivity extends Activity {
         page(R.string.choose_exercise);
         button(getString(R.string.choose_exercise), this::choose);
         coachingButton();
+        coachView = new DefaultCoachView(this, false);
+        page.addView(coachView);
+        displayedDay = LocalDate.now();
         try (Cursor plan = store.plan(exercise)) {
             if (!plan.moveToFirst()) {
                 setup();
                 addFeedbackActions();
+                bindDefault();
                 return;
             }
-            int goal = plan.getInt(1);
+            fallbackWeight = new BigDecimal(plan.getString(0));
+            fallbackReps = plan.getInt(1);
             LinearLayout latest = new LinearLayout(this);
             latest.setOrientation(LinearLayout.VERTICAL);
             latest.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
@@ -160,9 +188,17 @@ public final class MainActivity extends Activity {
             showLatest(latest);
             button(getString(R.string.history), this::history);
             page.addView(new Space(this), new LinearLayout.LayoutParams(1, 0, 1));
-            SetInputView input = new SetInputView(this, new BigDecimal(plan.getString(0)), goal,
-                    choices(goal), (kg, reps, partial, result) -> {
+            setInput = new SetInputView(this, fallbackWeight, fallbackReps,
+                    choices(fallbackReps), (kg, reps, partial, result) -> {
                         try {
+                            LocalDate today = LocalDate.now();
+                            if (!today.equals(displayedDay)) {
+                                bindDefault();
+                                if (!today.equals(displayedDay)) {
+                                    result.complete(false);
+                                    return;
+                                }
+                            }
                             store.record(exercise, kg, reps, partial);
                         } catch (SQLiteException failure) {
                             result.complete(false);
@@ -172,7 +208,8 @@ public final class MainActivity extends Activity {
                         showLatest(latest);
                         refreshFeedbackActions();
                     });
-            Foundation.add(page, input, R.dimen.space_medium);
+            Foundation.add(page, setInput, R.dimen.space_medium);
+            bindDefault();
         } catch (RuntimeException failure) {
             button(getString(R.string.feedback_retry), this::openExercise);
             Toast.makeText(this, R.string.coaching_read_failed, Toast.LENGTH_LONG).show();
@@ -182,7 +219,48 @@ public final class MainActivity extends Activity {
 
     @Override protected void onResume() {
         super.onResume();
+        IntentFilter filter = new IntentFilter(Intent.ACTION_DATE_CHANGED);
+        filter.addAction(Intent.ACTION_TIME_CHANGED);
+        filter.addAction(Intent.ACTION_TIMEZONE_CHANGED);
+        registerReceiver(dateChanged, filter);
+        resumed = true;
+        bindDefault();
         refreshFeedbackActions();
+    }
+
+    @Override protected void onPause() {
+        resumed = false;
+        defaultCoach.unbind();
+        unregisterReceiver(dateChanged);
+        super.onPause();
+    }
+
+    private void bindDefault() {
+        if (!resumed || coachView == null) return;
+        LocalDate today = LocalDate.now();
+        boolean newDay = !today.equals(displayedDay);
+        if (newDay && setInput != null) {
+            try (Cursor plan = store.plan(exercise)) {
+                if (plan.moveToFirst()) {
+                    fallbackWeight = new BigDecimal(plan.getString(0));
+                    fallbackReps = plan.getInt(1);
+                }
+            } catch (SQLiteException failure) {
+                Toast.makeText(this, R.string.coaching_read_failed, Toast.LENGTH_LONG).show();
+                return;
+            }
+        }
+        displayedDay = today;
+        defaultCoach.bind(exercise, state -> {
+            coachView.show(state);
+            DailyCoach.Target target = state.target();
+            if (setInput != null && (newDay || !Objects.equals(target, displayedTarget))) {
+                int reps = target == null ? fallbackReps : target.reps();
+                setInput.recommendation(target == null ? fallbackWeight : target.kg(),
+                        reps, choices(reps), target != null);
+            }
+            displayedTarget = target;
+        });
     }
 
     private void addFeedbackActions() {
@@ -207,6 +285,8 @@ public final class MainActivity extends Activity {
     private void refreshFeedbackActions() {
         if (feedbackActions == null) return;
         feedbackActions.removeAllViews();
+        action("daily_entry", exercise == null ? R.string.daily_coach_title : R.string.default_coach_change, () -> startActivity(
+                new Intent(this, DailyCoachActivity.class).putExtra("exercise", exercise)));
         action("feedback_period", R.string.feedback_period, () -> startActivity(feedback("period")));
         action("feedback_new_cardio", R.string.feedback_new_cardio, () -> {
             try {
