@@ -35,3 +35,20 @@
 
 ## 다음에 확인할 선택
 기구 촬영 뒤 운동을 식별하거나 확인하는 방식, 첫 수치의 항목, 운동 종류별 종료와 하루 마감을 알리는 조작은 아직 정하지 않았다.
+
+## Android 개발 환경
+
+첫 실행 대상은 Android다. JDK 17, Android SDK Platform 36, Build Tools 36.0.0, Platform Tools를 설치하고 각각 JAVA_HOME과 ANDROID_HOME을 지정한다. Windows에서는 저장소 루트에서 다음 명령으로 컴파일·단위 테스트·lint·APK·앱 번들을 검증한다. Gradle wrapper가 Gradle 9.4.1을 사용한다.
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest :app:lintDebug :app:assembleDebug :app:bundleRelease
+```
+
+Android Studio의 Device Manager에서 API 36 에뮬레이터를 시작한 뒤 설치하고 첫 화면의 Adaptive Fit을 확인한다. 여러 기기가 연결돼 있다면 adb에 대상 기기의 -s 옵션을 지정한다.
+
+```powershell
+.\gradlew.bat :app:installDebug
+& "$env:ANDROID_HOME/platform-tools/adb.exe" shell am start -W -n org.adaptivefit.mobile/.MainActivity
+```
+
+debug APK는 app/build/outputs/apk/debug/app-debug.apk, release AAB는 app/build/outputs/bundle/release/app-release.aab에 생성된다. release AAB에는 배포용 서명이 설정되어 있지 않다.
