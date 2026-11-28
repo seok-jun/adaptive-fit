@@ -1,0 +1,33 @@
+<resources>
+    <color name="canvas">#F3F5EF</color>
+    <color name="surface">#FFFFFF</color>
+    <color name="ink">#152B22</color>
+    <color name="muted">#465C50</color>
+    <color name="active">#185A41</color>
+    <color name="inactive">#525D56</color>
+    <color name="error">#9B282E</color>
+    <dimen name="touch">48dp</dimen>
+    <dimen name="space_small">8dp</dimen>
+    <dimen name="space_medium">16dp</dimen>
+    <dimen name="page_margin">20dp</dimen>
+    <string name="preview_title">세트 기록 예시</string>
+    <string name="exercise">레그 프레스</string>
+    <string name="plan">예정　%1$s kg × %2$d회</string>
+    <string name="weight">이번 세트 무게 (kg)</string>
+    <string name="invalid_weight">0 이상의 무게를 입력하세요.</string>
+    <string name="partial">마지막 구간 반복</string>
+    <string name="partial_amount">구간 반복 횟수</string>
+    <string name="rep">%1$d회</string>
+    <string name="recommended">%1$d회 · 추천</string>
+    <string name="actual">실제 횟수 선택</string>
+    <string name="saved">✓ %1$d세트 기록됨</string>
+    <string name="result">%1$s kg × %2$d회</string>
+    <string name="mixed">전 구간 %1$d회 · 구간 반복 %2$d회</string>
+    <string name="summary">운동 종료 요약 예시</string>
+    <string name="empty_summary">기록한 세트가 생기면 여기에 표시됩니다.</string>
+    <string name="summary_count">기록한 세트 %1$d개</string>
+    <string name="selected_count">✓ %1$s</string>
+    <string name="partial_value">구간 반복 횟수, %1$d회</string>
+    <string name="feedback_mixed">최근 세트에서는 구간 반복을 따로 세어 전 구간 %1$d회를 수행했습니다.</string>
+    <string name="feedback_full">최근 세트의 %1$d회는 모두 전 구간 반복이었습니다.</string>
+</resources>
