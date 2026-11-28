@@ -31,3 +31,15 @@ dependencyLocking {
 dependencies {
     testImplementation 'junit:junit:4.13.2'
 }
+
+// Lint resolves a separate tool classpath from the Android Gradle plugin.
+def toolVersions = new Properties()
+rootProject.file('gradle/security-versions.properties').withInputStream { toolVersions.load(it) }
+configurations.matching { it.name.toLowerCase().contains('lint') }.configureEach {
+    resolutionStrategy.eachDependency { details ->
+        def fixed = toolVersions.getProperty(details.requested.group + ':' + details.requested.name)
+        if (fixed != null) {
+            details.useVersion(fixed)
+        }
+    }
+}

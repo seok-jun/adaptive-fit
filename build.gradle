@@ -1,3 +1,11 @@
+buildscript {
+    def versions = new Properties()
+    rootProject.file('gradle/security-versions.properties').withInputStream { versions.load(it) }
+    dependencies.constraints {
+        versions.each { module, version -> add('classpath', module + ':' + version) }
+    }
+}
+
 plugins {
-    id 'com.android.application' version '9.2.1' apply false
+    id 'com.android.application' version '9.5.3' apply false
 }

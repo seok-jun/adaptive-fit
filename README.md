@@ -38,7 +38,7 @@
 
 ## Android 개발 환경
 
-첫 실행 대상은 Android다. JDK 17, Android SDK Platform 36, Build Tools 36.0.0, Platform Tools를 설치하고 각각 JAVA_HOME과 ANDROID_HOME을 지정한다. Windows에서는 저장소 루트에서 다음 명령으로 컴파일·단위 테스트·lint·APK·앱 번들을 검증한다. Gradle wrapper가 Gradle 9.4.1을 사용한다.
+첫 실행 대상은 Android다. JDK 17, Android SDK Platform 36, Build Tools 36.0.0, Platform Tools를 설치하고 각각 JAVA_HOME과 ANDROID_HOME을 지정한다. Windows에서는 저장소 루트에서 다음 명령으로 컴파일·단위 테스트·lint·APK·앱 번들을 검증한다. Gradle wrapper가 Gradle 9.9.3을 사용한다.
 
 ```powershell
 .\gradlew.bat :app:testDebugUnitTest :app:lintDebug :app:assembleDebug :app:bundleRelease
