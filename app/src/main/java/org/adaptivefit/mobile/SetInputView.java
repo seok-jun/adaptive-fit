@@ -1,7 +1,6 @@
 package org.adaptivefit.mobile;
 
 import android.content.Context;
-import android.content.res.ColorStateList;
 import android.text.InputType;
 import android.view.View;
 import android.widget.ArrayAdapter;
@@ -32,13 +31,27 @@ public final class SetInputView extends LinearLayout {
         super(context);
         Foundation.card(this);
         int touch = Foundation.size(context, R.dimen.touch);
-        TextView plan = Foundation.text(context, 22, true);
-        plan.setText(context.getString(R.string.plan, suggestedWeight.toPlainString(), suggestedReps));
+        TextView plan = Foundation.text(context, R.style.FitLabel, true);
+        plan.setText(R.string.plan);
         addView(plan);
+        TextView metric = Foundation.text(context, R.style.FitMetric, false);
+        metric.setText(Foundation.measurement(context.getString(R.string.result,
+                suggestedWeight.toPlainString(), suggestedReps)));
+        addView(metric);
 
-        TextView label = Foundation.text(context, 16, false);
+        LinearLayout options = new LinearLayout(context);
+        options.setOrientation(VERTICAL);
+        Button edit = new Button(context, null, android.R.attr.borderlessButtonStyle);
+        edit.setText(context.getString(R.string.edit_weight, suggestedWeight.toPlainString()));
+        edit.setMinHeight(touch);
+        edit.setAllCaps(false);
+        edit.setTextAppearance(R.style.FitBody);
+        edit.setGravity(android.view.Gravity.START | android.view.Gravity.CENTER_VERTICAL);
+        options.addView(edit);
+
+        TextView label = Foundation.text(context, R.style.FitBody, false);
         label.setText(R.string.weight);
-        Foundation.add(this, label, R.dimen.space_medium);
+        Foundation.add(options, label, R.dimen.space_medium);
         weight = new EditText(context);
         weight.setId(View.generateViewId());
         label.setLabelFor(weight.getId());
@@ -47,27 +60,45 @@ public final class SetInputView extends LinearLayout {
         weight.setMinHeight(touch);
         weight.setSelectAllOnFocus(true);
         weight.setText(suggestedWeight.toPlainString());
-        addView(weight);
+        options.addView(weight);
+        label.setVisibility(GONE);
+        weight.setVisibility(GONE);
 
-        TextView error = Foundation.text(context, 16, false);
+        TextView error = Foundation.text(context, R.style.FitBody, false);
         error.setTextColor(context.getColor(R.color.error));
         error.setText(R.string.invalid_weight);
         error.setAccessibilityLiveRegion(ACCESSIBILITY_LIVE_REGION_POLITE);
         error.setVisibility(GONE);
-        addView(error);
+        options.addView(error);
+        edit.setOnClickListener(v -> {
+            boolean open = weight.getVisibility() != VISIBLE;
+            if (!open && !validWeight(weight.getText().toString())) {
+                error.setVisibility(VISIBLE);
+                weight.requestFocus();
+                return;
+            }
+            label.setVisibility(open ? VISIBLE : GONE);
+            weight.setVisibility(open ? VISIBLE : GONE);
+            edit.setText(open ? context.getString(R.string.editing_weight)
+                    : context.getString(R.string.edit_weight, weight.getText().toString()));
+        });
         weight.addTextChangedListener(new android.text.TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
             @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
                 error.setVisibility(GONE);
+                if (validWeight(s.toString())) {
+                    metric.setText(Foundation.measurement(context.getString(R.string.result,
+                            s.toString(), suggestedReps)));
+                }
             }
             @Override public void afterTextChanged(android.text.Editable s) {}
         });
 
         partial = new Switch(context);
         partial.setText(R.string.partial);
-        partial.setTextSize(16);
+        partial.setTextAppearance(R.style.FitBody);
         partial.setMinHeight(touch);
-        addView(partial);
+        options.addView(partial);
         partialCount = new Spinner(context);
         partialCount.setContentDescription(context.getString(R.string.partial_amount));
         partialCount.setMinimumHeight(touch);
@@ -86,7 +117,7 @@ public final class SetInputView extends LinearLayout {
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         partialCount.setAdapter(adapter);
         partialCount.setVisibility(GONE);
-        addView(partialCount);
+        options.addView(partialCount);
         partialCount.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
             @Override public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) {
                 partialCount.setContentDescription(context.getString(R.string.partial_value, position + 1));
@@ -100,7 +131,7 @@ public final class SetInputView extends LinearLayout {
             updateEnabledCounts();
         });
 
-        TextView title = Foundation.text(context, 20, true);
+        TextView title = Foundation.text(context, R.style.FitHeading, true);
         title.setText(R.string.actual);
         Foundation.add(this, title, R.dimen.space_small);
         LinearLayout row = null;
@@ -115,36 +146,38 @@ public final class SetInputView extends LinearLayout {
             Button choice = new Button(context);
             choice.setTag(count);
             choice.setText(context.getString(count == suggestedReps ? R.string.recommended : R.string.rep, count));
-            choice.setTextSize(18);
-            choice.setMinHeight(touch);
-            choice.setTextColor(context.getColor(R.color.surface));
-            choice.setBackgroundTintList(new ColorStateList(
-                    new int[][]{{-android.R.attr.state_enabled}, {android.R.attr.state_selected}, {}},
-                    new int[]{context.getColor(R.color.inactive), context.getColor(R.color.active), context.getColor(R.color.ink)}));
+            Foundation.repAction(choice, count == suggestedReps);
             choice.setOnClickListener(button -> {
-                BigDecimal kilograms;
-                try {
-                    kilograms = new BigDecimal(weight.getText().toString());
-                    if (kilograms.signum() < 0) throw new NumberFormatException();
-                } catch (NumberFormatException invalid) {
+                String value = weight.getText().toString();
+                if (!validWeight(value)) {
                     error.setVisibility(VISIBLE);
                     weight.requestFocus();
                     return;
                 }
                 error.setVisibility(GONE);
+                BigDecimal kilograms = new BigDecimal(value);
                 int segment = selectedPartialCount();
                 if (segment > count) return;
-                for (Button option : choices) {
-                    int value = (int) option.getTag();
-                    String labelText = context.getString(value == suggestedReps ? R.string.recommended : R.string.rep, value);
-                    option.setSelected(option == choice);
-                    option.setText(option == choice ? context.getString(R.string.selected_count, labelText) : labelText);
-                }
+                edit.setText(context.getString(R.string.edit_weight, kilograms.toPlainString()));
+                weight.setVisibility(GONE);
+                label.setVisibility(GONE);
                 partial.setChecked(false);
                 listener.onSet(kilograms, count, segment);
             });
             choices.add(choice);
-            row.addView(choice, new LinearLayout.LayoutParams(0, -2, 1));
+            LinearLayout.LayoutParams cell = new LinearLayout.LayoutParams(0, -2, 1);
+            cell.topMargin = Foundation.size(context, R.dimen.space_small);
+            if (i % columns != 0) cell.setMarginStart(Foundation.size(context, R.dimen.space_small));
+            row.addView(choice, cell);
+        }
+        Foundation.add(this, options, R.dimen.space_small);
+    }
+
+    private static boolean validWeight(String value) {
+        try {
+            return new BigDecimal(value).signum() >= 0;
+        } catch (NumberFormatException invalid) {
+            return false;
         }
     }
 

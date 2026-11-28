@@ -28,10 +28,10 @@ public final class MainActivity extends Activity {
         page.setFocusableInTouchMode(true);
         Foundation.pad(page, R.dimen.page_margin);
         scroll.addView(page);
-        TextView title = Foundation.text(this, 16, false);
+        TextView title = Foundation.text(this, R.style.FitLabel, false);
         title.setText(R.string.preview_title);
         page.addView(title);
-        TextView exercise = Foundation.text(this, 30, true);
+        TextView exercise = Foundation.text(this, R.style.FitTitle, true);
         exercise.setText(R.string.exercise);
         page.addView(exercise);
         LinearLayout latest = new LinearLayout(this);
