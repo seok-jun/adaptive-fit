@@ -72,7 +72,10 @@ public final class FeedbackActivity extends Activity {
 
     @Override protected void onResume() {
         super.onResume();
-        registerReceiver(zoneChanged, new IntentFilter(Intent.ACTION_TIMEZONE_CHANGED));
+        IntentFilter filter = new IntentFilter(Intent.ACTION_TIMEZONE_CHANGED);
+        filter.addAction(Intent.ACTION_DATE_CHANGED);
+        filter.addAction(Intent.ACTION_TIME_CHANGED);
+        registerReceiver(zoneChanged, filter);
         refresh();
     }
 
@@ -206,6 +209,8 @@ public final class FeedbackActivity extends Activity {
         }
         layout();
         label(getString(R.string.feedback_finish_cardio), true);
+        DailyCoach.Target daily = new DailyGoals(workouts).target(null, LocalDate.now());
+        if (daily != null) label(getString(R.string.daily_minutes_target, daily.minutes()), false);
         TextView caption = label(getString(R.string.feedback_minutes), false);
         EditText minutes = new EditText(this);
         minutes.setTag("feedback_minutes");

@@ -2,7 +2,12 @@ package org.adaptivefit.mobile;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
+import java.time.LocalDate;
+import java.util.Objects;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteException;
 import android.os.Bundle;
@@ -20,6 +25,12 @@ public final class MainActivity extends Activity {
     private String exercise;
     private LinearLayout feedbackActions;
     private boolean awaitingCameraSelection;
+
+    private LocalDate displayedDay;
+    private DailyCoach.Target displayedTarget;
+    private final BroadcastReceiver dateChanged = new BroadcastReceiver() {
+        @Override public void onReceive(Context context, Intent intent) { refreshDailyTarget(); }
+    };
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
@@ -146,11 +157,19 @@ public final class MainActivity extends Activity {
         page(R.string.choose_exercise);
         button(getString(R.string.choose_exercise), this::choose);
         coachingButton();
+        displayedDay = LocalDate.now();
         try (Cursor plan = store.plan(exercise)) {
+            displayedTarget = new DailyGoals(store).target(exercise, displayedDay);
             if (!plan.moveToFirst()) {
                 setup();
                 addFeedbackActions();
                 return;
+            }
+            if (displayedTarget != null) {
+                TextView target = Foundation.text(this, R.style.FitLabel, true);
+                target.setText(getString(R.string.daily_lift_target, displayedTarget.sets(),
+                        displayedTarget.kg().toPlainString(), displayedTarget.reps()));
+                page.addView(target);
             }
             int goal = plan.getInt(1);
             LinearLayout latest = new LinearLayout(this);
@@ -163,6 +182,11 @@ public final class MainActivity extends Activity {
             SetInputView input = new SetInputView(this, new BigDecimal(plan.getString(0)), goal,
                     choices(goal), (kg, reps, partial, result) -> {
                         try {
+                            if (!LocalDate.now().equals(displayedDay)) {
+                                result.complete(false);
+                                openExercise();
+                                return;
+                            }
                             store.record(exercise, kg, reps, partial);
                         } catch (SQLiteException failure) {
                             result.complete(false);
@@ -182,7 +206,28 @@ public final class MainActivity extends Activity {
 
     @Override protected void onResume() {
         super.onResume();
+        IntentFilter filter = new IntentFilter(Intent.ACTION_DATE_CHANGED);
+        filter.addAction(Intent.ACTION_TIME_CHANGED);
+        filter.addAction(Intent.ACTION_TIMEZONE_CHANGED);
+        registerReceiver(dateChanged, filter);
+        refreshDailyTarget();
         refreshFeedbackActions();
+    }
+
+    @Override protected void onPause() {
+        unregisterReceiver(dateChanged);
+        super.onPause();
+    }
+
+    private void refreshDailyTarget() {
+        if (exercise == null) return;
+        LocalDate today = LocalDate.now();
+        try {
+            DailyCoach.Target target = new DailyGoals(store).target(exercise, today);
+            if (!today.equals(displayedDay) || !Objects.equals(target, displayedTarget)) openExercise();
+        } catch (SQLiteException failure) {
+            openExercise();
+        }
     }
 
     private void addFeedbackActions() {
@@ -207,6 +252,8 @@ public final class MainActivity extends Activity {
     private void refreshFeedbackActions() {
         if (feedbackActions == null) return;
         feedbackActions.removeAllViews();
+        action("daily_entry", R.string.daily_coach_title, () -> startActivity(
+                new Intent(this, DailyCoachActivity.class).putExtra("exercise", exercise)));
         action("feedback_period", R.string.feedback_period, () -> startActivity(feedback("period")));
         action("feedback_new_cardio", R.string.feedback_new_cardio, () -> {
             try {

@@ -6,10 +6,11 @@ import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 
 final class WorkoutStore extends SQLiteOpenHelper {
     WorkoutStore(Context context) {
-        super(context, "workouts.db", null, 2, db -> {
+        super(context, "workouts.db", null, 3, db -> {
             throw new android.database.sqlite.SQLiteDatabaseCorruptException("Cannot access damaged workout database");
         });
     }
@@ -27,6 +28,7 @@ final class WorkoutStore extends SQLiteOpenHelper {
                 + "partial INTEGER NOT NULL CHECK(partial BETWEEN 0 AND reps), recorded_at INTEGER NOT NULL)");
         db.execSQL("CREATE INDEX actual_exercise ON actual(exercise, id)");
         addSessions(db);
+        addDailyGoals(db);
     }
 
     private void addSessions(SQLiteDatabase db) {
@@ -45,9 +47,21 @@ final class WorkoutStore extends SQLiteOpenHelper {
         db.execSQL("CREATE TABLE receipt (kind TEXT PRIMARY KEY, session_id INTEGER NOT NULL REFERENCES workout_session(id))");
     }
 
+    private void addDailyGoals(SQLiteDatabase db) {
+        db.execSQL("CREATE TABLE daily_goal (day TEXT NOT NULL, kind TEXT NOT NULL, exercise TEXT NOT NULL,"
+                + " weight TEXT, reps INTEGER NOT NULL, sets INTEGER NOT NULL, minutes INTEGER NOT NULL,"
+                + " PRIMARY KEY(day,kind,exercise),"
+                + " CHECK((kind='weight' AND exercise<>'' AND weight IS NOT NULL AND reps BETWEEN 1 AND 100"
+                + " AND sets>0 AND minutes=0) OR (kind='cardio' AND exercise='' AND weight IS NULL"
+                + " AND reps=0 AND sets=0 AND minutes>0)))");
+    }
+
     @Override public void onUpgrade(SQLiteDatabase db, int from, int to) {
-        if (from == 1 && to == 2) addSessions(db);
-        else throw new IllegalStateException("Unknown workout database version " + from);
+        if (to != 3 || (from != 1 && from != 2)) {
+            throw new IllegalStateException("Unknown workout database upgrade " + from + " → " + to);
+        }
+        if (from == 1) addSessions(db);
+        addDailyGoals(db);
     }
 
     void configure(String exercise, BigDecimal weight, int goal) {
@@ -59,9 +73,10 @@ final class WorkoutStore extends SQLiteOpenHelper {
     }
 
     Cursor plan(String exercise) {
-        return getReadableDatabase().rawQuery("SELECT COALESCE((SELECT weight FROM actual "
-                + "WHERE actual.exercise = e.name ORDER BY id DESC LIMIT 1), e.weight), e.goal "
-                + "FROM exercise e WHERE e.name = ?", new String[]{exercise});
+        return getReadableDatabase().rawQuery("SELECT COALESCE(d.weight, (SELECT weight FROM actual "
+                + "WHERE actual.exercise = e.name ORDER BY id DESC LIMIT 1), e.weight), COALESCE(d.reps, e.goal) "
+                + "FROM exercise e LEFT JOIN daily_goal d ON d.day=? AND d.kind='weight' AND d.exercise=e.name "
+                + "WHERE e.name=?", new String[]{LocalDate.now().toString(), exercise});
     }
 
     void record(String exercise, BigDecimal weight, int reps, int partial) {

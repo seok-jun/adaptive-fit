@@ -1,0 +1,33 @@
+<resources>
+    <string name="daily_coach_title">오늘의 운동 코칭</string>
+    <string name="daily_coach_cardio">유산소</string>
+    <string name="daily_coach_ask">질문 보내기</string>
+    <string name="daily_coach_question">운동 기록에 관해 질문하기</string>
+    <string name="daily_coach_suggest_goal">내 목표와 최근 기록을 보면 오늘은 어떻게 운동할까?</string>
+    <string name="daily_coach_suggest_yesterday">어제 목표와 실제 운동 기록을 비교해 줘.</string>
+    <string name="daily_coach_date">%1$s · %2$s 기준</string>
+    <string name="daily_coach_recent">오늘·어제의 실제 합계와 최근 기록 최대 10건</string>
+    <string name="daily_coach_unconfirmed">어제 실제 수행 · 확인할 기록 없음</string>
+    <string name="daily_coach_yesterday">어제 목표 · %1$s</string>
+    <string name="daily_coach_today">오늘 목표 · %1$s</string>
+    <string name="daily_coach_weight_target">%1$s kg × %2$d회 × %3$d세트</string>
+    <string name="daily_coach_minutes_target">%1$d분</string>
+    <string name="daily_coach_need_goal">코칭에 사용할 목표를 먼저 선택하세요.</string>
+    <string name="daily_coach_pick_goal">코칭 목표 선택</string>
+    <string name="daily_coach_no_weight">이 종목의 실제 세트를 기록하면 코칭을 요청할 수 있어요.</string>
+    <string name="daily_coach_no_cardio">실제 시간을 입력하고 유산소를 마치면 코칭을 요청할 수 있어요.</string>
+    <string name="daily_coach_no_provider">AI 서비스가 아직 연결되지 않았어요. 이 화면에서 운동 기록은 확인할 수 있어요.</string>
+    <string name="daily_coach_empty">질문을 입력하세요.</string>
+    <string name="daily_coach_wait">코칭 답변을 기다리는 중…</string>
+    <string name="daily_coach_failed">코칭을 받지 못했어요. 질문을 다시 보내세요.</string>
+    <string name="daily_coach_changed">날짜 또는 코칭 목표가 바뀌었어요. 새로 질문해 주세요.</string>
+    <string name="daily_coach_citations">답변에서 참고한 실제 기록</string>
+    <string name="daily_coach_target">오늘의 제안</string>
+    <string name="daily_coach_target_kg">세트당 무게 (kg)</string>
+    <string name="daily_coach_target_reps">세트당 횟수</string>
+    <string name="daily_coach_target_sets">목표 세트 수</string>
+    <string name="daily_coach_target_minutes">오늘 목표 시간 (분)</string>
+    <string name="daily_coach_apply">오늘 목표에 적용</string>
+    <string name="daily_coach_bad_target">무게는 0 이상, 횟수는 1~100, 세트 수는 양의 정수로 입력하세요.</string>
+    <string name="daily_coach_applied">오늘 운동 목표에 적용했어요.</string>
+</resources>
