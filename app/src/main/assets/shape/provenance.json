@@ -1,0 +1,124 @@
+{
+  "base_model": "https://huggingface.co/openai/clip-vit-base-patch32",
+  "converted_model": "https://huggingface.co/Xenova/clip-vit-base-patch32",
+  "revision": "6b7c523703ae26e39be4b03774966f8571c7f523",
+  "license": "MIT",
+  "model_card": "https://huggingface.co/Xenova/clip-vit-base-patch32/blob/6b7c523703ae26e39be4b03774966f8571c7f523/README.md",
+  "license_source": "https://github.com/openai/CLIP/blob/b1c4b6be5871f1b94359ba55901627f29ecc9ae9/LICENSE",
+  "vision_model": {
+    "source_path": "onnx/vision_model_q4.onnx",
+    "bytes": 63642858,
+    "sha256": "0769eb1d2f6f68927bbfa6e5330df4c4c3c112f89cd43eae28baafa9e6bd34b4",
+    "input": "pixel_values",
+    "output": "image_embeds"
+  },
+  "image_preprocessing": {
+    "color": "RGB",
+    "rotation": "upright rear camera orientation",
+    "crop": "center square, odd excess on right/bottom",
+    "resize": "224x224 pixel-center bilinear",
+    "layout": "NCHW float32",
+    "scale": 0.00392156862745098,
+    "mean": [
+      0.48145466,
+      0.4578275,
+      0.40821073
+    ],
+    "std": [
+      0.26862954,
+      0.26130258,
+      0.27577711
+    ]
+  },
+  "text_model": {
+    "source_path": "onnx/text_model_q4.onnx",
+    "sha256": "e4ccd15d806b8af841a036884b42034535d58e04c52df00f56e73f72d3c166d5",
+    "input": "input_ids",
+    "output": "text_embeds"
+  },
+  "tokenizer": {
+    "source_path": "tokenizer.json",
+    "sha256": "f7f3b7af117d467b58374797691a6438d3e6b9e9cef800dfd5dced7f697a90cd"
+  },
+  "embeddings": {
+    "file": "shape-text-embeddings.bin",
+    "sha256": "c1dad6acdedc1bfd1c2c645b8d3053a090cbc2a4dbafac050cf1d9875660673e",
+    "shape": [
+      10,
+      512
+    ],
+    "encoding": "little-endian float32, row major, no header"
+  },
+  "generation": {
+    "versions": {
+      "onnxruntime": "1.32.0",
+      "tokenizers": "0.23.3",
+      "numpy": "2.5.5"
+    },
+    "commands": [
+      "Download tokenizer.json and onnx/text_model_q4.onnx from converted_model at revision. Verify the input SHA-256 values.",
+      "tok = tokenizers.Tokenizer.from_file(\"tokenizer.json\")",
+      "session = onnxruntime.InferenceSession(\"text_model_q4.onnx\", providers=[\"CPUExecutionProvider\"])",
+      "rows = []",
+      "for prompt in provenance[\"prompts\"]:",
+      "    ids = numpy.asarray([tok.encode(prompt[\"text\"]).ids], dtype=numpy.int64)",
+      "    vector = session.run([\"text_embeds\"], {\"input_ids\": ids})[0].reshape(-1)",
+      "    rows.append(vector / numpy.linalg.norm(vector))",
+      "numpy.asarray(rows, dtype=\"<f4\").tofile(\"shape-text-embeddings.bin\")"
+    ]
+  },
+  "prompts": [
+    {
+      "text": "a photo of a barbell bench press station with a flat exercise bench and barbell supported by uprights",
+      "exercise": "벤치 프레스"
+    },
+    {
+      "text": "a photo of a lat pulldown exercise machine with a high overhead cable, wide bar, seat and thigh pads",
+      "exercise": "랫 풀다운"
+    },
+    {
+      "text": "a photo of a leg press exercise machine with a seat and a large angled foot platform",
+      "exercise": "레그 프레스"
+    },
+    {
+      "text": "a photo of a squat rack or power rack without a bench",
+      "exercise": "스쿼트"
+    },
+    {
+      "text": "a photo of a different type of gym equipment",
+      "exercise": null
+    },
+    {
+      "text": "a photo of an ordinary object outside the gym",
+      "exercise": null
+    },
+    {
+      "text": "a photo of an indoor room without workout equipment",
+      "exercise": null
+    },
+    {
+      "text": "a close-up photo of a printed label, sign or text",
+      "exercise": null
+    },
+    {
+      "text": "a photo of a person",
+      "exercise": null
+    },
+    {
+      "text": "a blurry or blank photograph",
+      "exercise": null
+    }
+  ],
+  "scoring": {
+    "type": "cosine, across every prompt",
+    "minimum": 0.26,
+    "minimum_lead": 0.01,
+    "reject": "winning exercise is null, absent from the current catalog, or below either threshold"
+  },
+  "runtime": {
+    "artifact": "com.microsoft.onnxruntime:onnxruntime-android:1.32.0",
+    "provider": "CPUExecutionProvider",
+    "license": "MIT",
+    "artifact_sha256": "8e8dbb412ed4939675a157702f0c1e3621b436a645af7f7244536ac20bfad628"
+  }
+}

@@ -10,12 +10,15 @@ import android.text.InputType;
 import android.view.View;
 import android.widget.*;
 import java.math.BigDecimal;
+import java.util.Arrays;
 import java.util.LinkedHashSet;
 
 public final class MainActivity extends Activity {
+    private static final int REQUEST_CAMERA_SELECTION = 71;
     private WorkoutStore store;
     private LinearLayout page;
     private String exercise;
+    private boolean awaitingCameraSelection;
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
@@ -66,13 +69,31 @@ public final class MainActivity extends Activity {
         getPreferences(MODE_PRIVATE).edit().remove("exercise").apply();
         page(R.string.choose_exercise);
         for (String name : getResources().getStringArray(R.array.exercises)) {
-            button(name, () -> {
-                exercise = name;
-                getPreferences(MODE_PRIVATE).edit().putString("exercise", name).apply();
-                openExercise();
-            });
+            button(name, () -> selectExercise(name));
         }
+        button(getString(R.string.camera_entry), () -> {
+            if (awaitingCameraSelection) return;
+            awaitingCameraSelection = true;
+            startActivityForResult(new Intent(this, CameraSelectionActivity.class), REQUEST_CAMERA_SELECTION);
+        });
         coachingButton();
+    }
+
+    private void selectExercise(String name) {
+        exercise = name;
+        getPreferences(MODE_PRIVATE).edit().putString("exercise", name).apply();
+        openExercise();
+    }
+
+    @Override protected void onActivityResult(int request, int result, Intent data) {
+        super.onActivityResult(request, result, data);
+        if (request != REQUEST_CAMERA_SELECTION || !awaitingCameraSelection) return;
+        awaitingCameraSelection = false;
+        if (result != RESULT_OK || data == null || exercise != null) return;
+        String name = data.getStringExtra(CameraSelectionActivity.EXTRA_EXERCISE);
+        if (Arrays.asList(getResources().getStringArray(R.array.exercises)).contains(name)) {
+            selectExercise(name);
+        }
     }
 
     private EditText field(int resource, int flags) {
